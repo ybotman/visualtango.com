@@ -9,12 +9,17 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tonejs/midi": "^2.0.28",
+    "howler": "^2.2.4",
     "next": "16.1.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "tone": "^15.1.22",
+    "wavesurfer.js": "^7.12.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/howler": "^2.2.12",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

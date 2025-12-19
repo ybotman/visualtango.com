@@ -1,11 +1,11 @@
 'use client';
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
-import { loadMidi, ParsedMidi } from '@/lib/midi';
+import { loadMidi } from '@/lib/midi';
 import {
   Note,
   Track,
@@ -22,9 +22,10 @@ import {
 } from '@/lib/sync';
 import { fetchSongConfig, saveSongConfig, exportConfigAsJson } from '@/lib/storage';
 
+type EditorMode = 'sync' | 'adornment';
+
 export default function EditorPage() {
   const params = useParams();
-  const router = useRouter();
   const songId = params.songId as string;
 
   // Refs
@@ -51,10 +52,14 @@ export default function EditorPage() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioTime, setAudioTime] = useState(0);
 
+  // State - Editor Mode
+  const [editorMode, setEditorMode] = useState<EditorMode>('sync');
+
   // State - Selection
   const [selectedMidiTime, setSelectedMidiTime] = useState<number | null>(null);
   const [selectedAudioTime, setSelectedAudioTime] = useState<number | null>(null);
   const [selectedNotes, setSelectedNotes] = useState<Note[]>([]);
+  const [hoveredNote, setHoveredNote] = useState<Note | null>(null);
 
   // State - Sync & Adornments
   const [syncPoints, setSyncPoints] = useState<SyncPoint[]>([]);
@@ -62,24 +67,44 @@ export default function EditorPage() {
   const [adornmentScope, setAdornmentScope] = useState<'section' | 'track'>('section');
   const [selectedTrackForAdornment, setSelectedTrackForAdornment] = useState<number>(0);
 
-  // State - UI
+  // State - UI / Piano Roll
   const [midiZoom, setMidiZoom] = useState(50);
   const [midiScroll, setMidiScroll] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [dragStartScroll, setDragStartScroll] = useState(0);
+
+  // State - Audio Zoom & Scroll
+  const [audioZoom, setAudioZoom] = useState(50); // WaveSurfer zoom: pixels per second
+  const [isAudioDragging, setIsAudioDragging] = useState(false);
+  const [audioDragStartX, setAudioDragStartX] = useState(0);
+  const [audioDragStartTime, setAudioDragStartTime] = useState(0);
+
+  // State - Synced Zoom
+  const [syncedZoom, setSyncedZoom] = useState(true); // Keep audio and MIDI zoom in sync
 
   // Load files on mount
   useEffect(() => {
+    let isMounted = true;
+    let loadTimeout: NodeJS.Timeout | null = null;
+
     async function loadFiles() {
       setLoading(true);
       setError(null);
 
+      loadTimeout = setTimeout(() => {
+        if (isMounted) {
+          setError('Loading timed out. Please refresh the page.');
+          setLoading(false);
+        }
+      }, 30000);
+
       try {
-        // Load config first
         const loadedConfig = await fetchSongConfig(songId);
         setConfig(loadedConfig);
         setSyncPoints(loadedConfig.syncPoints || []);
         setAdornments(loadedConfig.adornments || []);
 
-        // Load MIDI
         const midiUrl = `/songs/${songId}/${loadedConfig.midiFile || `${songId}.mid`}`;
         const midiData = await loadMidi(midiUrl);
         setNotes(midiData.notes);
@@ -94,8 +119,18 @@ export default function EditorPage() {
         setMidiDuration(midiData.duration);
         setMidiLoaded(true);
 
-        // Load Audio with WaveSurfer
-        if (waveformRef.current) {
+        // WaveSurfer initialization - retry if ref not ready (React Strict Mode)
+        const initWaveSurfer = () => {
+          if (!waveformRef.current || !isMounted) {
+            // Retry after a short delay (handles React Strict Mode double-mount)
+            setTimeout(() => {
+              if (isMounted && waveformRef.current) {
+                initWaveSurfer();
+              }
+            }, 100);
+            return;
+          }
+
           const regions = RegionsPlugin.create();
           regionsRef.current = regions;
 
@@ -111,11 +146,12 @@ export default function EditorPage() {
           });
 
           ws.on('ready', () => {
+            if (loadTimeout) clearTimeout(loadTimeout);
+            if (!isMounted) return;
             setAudioDuration(ws.getDuration());
             setAudioLoaded(true);
             setLoading(false);
 
-            // Add existing sync markers
             loadedConfig.syncPoints?.forEach((sp) => {
               regions.addRegion({
                 id: sp.id,
@@ -123,11 +159,28 @@ export default function EditorPage() {
                 end: sp.audioTime,
                 color: 'rgba(16, 185, 129, 0.8)',
                 content: sp.label,
+                drag: true,
+                resize: false,
               });
+            });
+
+            // Listen for region updates (when user drags a sync point)
+            regions.on('region-updated', (region) => {
+              console.log('Region updated:', region.id, 'new time:', region.start);
+              setSyncPoints((prev) =>
+                prev.map((sp) =>
+                  sp.id === region.id
+                    ? { ...sp, audioTime: region.start }
+                    : sp
+                )
+              );
             });
           });
 
-          ws.on('error', () => {
+          ws.on('error', (err) => {
+            console.error('WaveSurfer error:', err);
+            if (loadTimeout) clearTimeout(loadTimeout);
+            if (!isMounted) return;
             setError('Failed to load audio file');
             setLoading(false);
           });
@@ -136,6 +189,7 @@ export default function EditorPage() {
           ws.on('play', () => setIsPlaying(true));
           ws.on('pause', () => setIsPlaying(false));
           ws.on('click', (relativeX) => {
+            if (editorMode !== 'sync') return;
             const time = relativeX * ws.getDuration();
             setSelectedAudioTime(time);
             ws.setTime(time);
@@ -144,16 +198,24 @@ export default function EditorPage() {
           const audioUrl = `/songs/${songId}/${loadedConfig.audioFile || `${songId}.mp3`}`;
           ws.load(audioUrl);
           wavesurferRef.current = ws;
-        }
+        };
+
+        initWaveSurfer();
       } catch (err) {
-        setError(`Failed to load: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        setLoading(false);
+        console.error('Editor load error:', err);
+        if (loadTimeout) clearTimeout(loadTimeout);
+        if (isMounted) {
+          setError(`Failed to load: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          setLoading(false);
+        }
       }
     }
 
     loadFiles();
 
     return () => {
+      isMounted = false;
+      if (loadTimeout) clearTimeout(loadTimeout);
       if (wavesurferRef.current) {
         wavesurferRef.current.destroy();
       }
@@ -166,25 +228,79 @@ export default function EditorPage() {
     wavesurferRef.current.playPause();
   }, []);
 
-  const goBack = useCallback(
-    (seconds: number) => {
+  const seekTo = useCallback(
+    (time: number) => {
       if (!wavesurferRef.current) return;
-      const newTime = Math.max(0, audioTime - seconds);
-      wavesurferRef.current.setTime(newTime);
-      setAudioTime(newTime);
+      const clampedTime = Math.max(0, Math.min(audioDuration, time));
+      wavesurferRef.current.setTime(clampedTime);
+      setAudioTime(clampedTime);
+    },
+    [audioDuration]
+  );
+
+  // Audio zoom control
+  const handleAudioZoom = useCallback(
+    (newZoom: number) => {
+      if (!wavesurferRef.current) return;
+      const clampedZoom = Math.max(20, Math.min(500, newZoom));
+      setAudioZoom(clampedZoom);
+      wavesurferRef.current.zoom(clampedZoom);
+      if (syncedZoom) {
+        setMidiZoom(clampedZoom);
+      }
+    },
+    [syncedZoom]
+  );
+
+  // MIDI zoom control (with sync option)
+  const handleMidiZoom = useCallback(
+    (newZoom: number) => {
+      const clampedZoom = Math.max(20, Math.min(500, newZoom));
+      setMidiZoom(clampedZoom);
+      if (syncedZoom && wavesurferRef.current) {
+        setAudioZoom(clampedZoom);
+        wavesurferRef.current.zoom(clampedZoom);
+      }
+    },
+    [syncedZoom]
+  );
+
+  // Audio waveform drag handlers
+  const handleAudioMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      // Alt+click or middle mouse button to drag
+      if (e.altKey || e.button === 1) {
+        e.preventDefault();
+        setIsAudioDragging(true);
+        setAudioDragStartX(e.clientX);
+        setAudioDragStartTime(audioTime);
+      }
     },
     [audioTime]
   );
 
-  const goForward = useCallback(
-    (seconds: number) => {
-      if (!wavesurferRef.current) return;
-      const newTime = Math.min(audioDuration, audioTime + seconds);
+  const handleAudioMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!isAudioDragging || !wavesurferRef.current) return;
+
+      const deltaX = e.clientX - audioDragStartX;
+      // Convert pixels to seconds based on zoom level
+      const deltaTime = -deltaX / audioZoom;
+      const newTime = Math.max(0, Math.min(audioDuration, audioDragStartTime + deltaTime));
+
       wavesurferRef.current.setTime(newTime);
       setAudioTime(newTime);
     },
-    [audioTime, audioDuration]
+    [isAudioDragging, audioDragStartX, audioDragStartTime, audioZoom, audioDuration]
   );
+
+  const handleAudioMouseUp = useCallback(() => {
+    setIsAudioDragging(false);
+  }, []);
+
+  const handleAudioMouseLeave = useCallback(() => {
+    setIsAudioDragging(false);
+  }, []);
 
   // Sync Point Management
   const createSyncPoint = useCallback(() => {
@@ -211,6 +327,8 @@ export default function EditorPage() {
         end: selectedAudioTime,
         color: 'rgba(16, 185, 129, 0.8)',
         content: label,
+        drag: true,
+        resize: false,
       });
     }
 
@@ -262,6 +380,11 @@ export default function EditorPage() {
 
   // Save Config
   const handleSave = useCallback(async () => {
+    console.log('=== SAVE STARTED ===');
+    console.log('Current syncPoints:', syncPoints);
+    console.log('Current adornments:', adornments);
+    console.log('Current tracks:', tracks.length);
+
     setSaving(true);
     try {
       const updatedConfig: SongConfig = {
@@ -284,10 +407,13 @@ export default function EditorPage() {
         updatedAt: new Date().toISOString(),
       };
 
+      console.log('Saving config:', updatedConfig);
       await saveSongConfig(songId, updatedConfig);
+      console.log('Save successful!');
       setConfig(updatedConfig);
       alert('Saved! You can now play this song with sync.');
     } catch (err) {
+      console.error('Save failed:', err);
       setError(`Failed to save: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setSaving(false);
@@ -312,6 +438,32 @@ export default function EditorPage() {
       adornments,
     });
   }, [config, syncPoints, tracks, adornments]);
+
+  // Get note at position helper
+  const getNoteAtPosition = useCallback(
+    (x: number, y: number, canvas: HTMLCanvasElement): Note | null => {
+      if (notes.length === 0) return null;
+
+      const minPitch = Math.min(...notes.map((n) => n.midi)) - 2;
+      const maxPitch = Math.max(...notes.map((n) => n.midi)) + 2;
+      const pitchRange = maxPitch - minPitch;
+
+      for (const note of notes) {
+        const noteX = (note.time - midiScroll) * midiZoom;
+        const noteWidth = Math.max(note.duration * midiZoom, 8);
+        const noteY =
+          canvas.height -
+          ((note.midi - minPitch) / pitchRange) * (canvas.height - 20) -
+          10;
+
+        if (x >= noteX && x <= noteX + noteWidth && y >= noteY - 4 && y <= noteY + 4) {
+          return note;
+        }
+      }
+      return null;
+    },
+    [notes, midiScroll, midiZoom]
+  );
 
   // Draw Piano Roll
   useEffect(() => {
@@ -342,7 +494,7 @@ export default function EditorPage() {
     const maxPitch = Math.max(...notes.map((n) => n.midi)) + 2;
     const pitchRange = maxPitch - minPitch;
 
-    // Draw time grid
+    // Draw time grid (every second)
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1;
     for (let t = 0; t < midiDuration; t += 1) {
@@ -352,6 +504,14 @@ export default function EditorPage() {
         ctx.moveTo(x, 0);
         ctx.lineTo(x, canvas.height);
         ctx.stroke();
+
+        // Time labels every 5 seconds
+        if (t % 5 === 0) {
+          ctx.fillStyle = '#555';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'left';
+          ctx.fillText(`${t}s`, x + 2, canvas.height - 2);
+        }
       }
     }
 
@@ -365,13 +525,18 @@ export default function EditorPage() {
         ctx.moveTo(x, 0);
         ctx.lineTo(x, canvas.height);
         ctx.stroke();
+
+        // Sync point label
+        ctx.fillStyle = '#10B981';
+        ctx.font = '10px sans-serif';
+        ctx.fillText(sp.label, x + 3, 12);
       }
     });
 
     // Draw notes
     notes.forEach((note) => {
       const x = (note.time - midiScroll) * midiZoom;
-      const width = Math.max(note.duration * midiZoom, 2);
+      const width = Math.max(note.duration * midiZoom, 3);
       const y =
         canvas.height -
         ((note.midi - minPitch) / pitchRange) * (canvas.height - 20) -
@@ -382,20 +547,24 @@ export default function EditorPage() {
       const isSelected = selectedNotes.some(
         (n) => n.time === note.time && n.midi === note.midi
       );
+      const isHovered = hoveredNote?.time === note.time && hoveredNote?.midi === note.midi;
 
-      ctx.fillStyle = isSelected
-        ? '#ffffff'
-        : tracks[note.track]?.color || '#666';
-      ctx.globalAlpha = isSelected ? 1 : note.velocity * 0.6 + 0.4;
+      // Note color
+      let color = tracks[note.track]?.color || '#666';
+      if (isSelected) color = '#ffffff';
+      else if (isHovered) color = '#F59E0B';
+
+      ctx.fillStyle = color;
+      ctx.globalAlpha = isSelected || isHovered ? 1 : note.velocity * 0.6 + 0.4;
       ctx.beginPath();
-      ctx.roundRect(x, y - 2, width, 4, 1);
+      ctx.roundRect(x, y - 3, width, 6, 2);
       ctx.fill();
     });
 
     ctx.globalAlpha = 1;
 
-    // Draw selected MIDI time marker
-    if (selectedMidiTime !== null) {
+    // Draw selected MIDI time marker (sync mode)
+    if (editorMode === 'sync' && selectedMidiTime !== null) {
       const x = (selectedMidiTime - midiScroll) * midiZoom;
       ctx.strokeStyle = '#F59E0B';
       ctx.lineWidth = 3;
@@ -406,8 +575,19 @@ export default function EditorPage() {
 
       ctx.fillStyle = '#F59E0B';
       ctx.font = '12px sans-serif';
-      ctx.fillText(`MIDI: ${formatTime(selectedMidiTime)}`, x + 5, 15);
+      ctx.textAlign = 'left';
+      ctx.fillText(`MIDI: ${formatTime(selectedMidiTime)}`, x + 5, 25);
     }
+
+    // Draw mode indicator
+    ctx.fillStyle = editorMode === 'sync' ? '#10B981' : '#8B5CF6';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(
+      editorMode === 'sync' ? 'SYNC MODE: Click to select time' : 'ADORNMENT MODE: Click/Shift+click notes',
+      canvas.width - 10,
+      15
+    );
   }, [
     notes,
     tracks,
@@ -417,67 +597,122 @@ export default function EditorPage() {
     syncPoints,
     selectedMidiTime,
     selectedNotes,
+    hoveredNote,
+    editorMode,
   ]);
 
-  // Piano Roll Click Handler
-  const handlePianoRollClick = useCallback(
+  // Piano Roll Mouse Handlers
+  const handlePianoRollMouseDown = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = pianoRollRef.current;
       if (!canvas) return;
 
+      // Middle mouse button or Alt+click for dragging
+      if (e.button === 1 || e.altKey) {
+        setIsDragging(true);
+        setDragStartX(e.clientX);
+        setDragStartScroll(midiScroll);
+        e.preventDefault();
+        return;
+      }
+
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       const clickTime = x / midiZoom + midiScroll;
 
-      const clickedNotes = notes.filter((note) => {
-        const noteX = (note.time - midiScroll) * midiZoom;
-        const noteWidth = Math.max(note.duration * midiZoom, 10);
-        return x >= noteX && x <= noteX + noteWidth;
-      });
-
-      if (e.shiftKey && clickedNotes.length > 0) {
-        setSelectedNotes((prev) => [...prev, ...clickedNotes]);
-      } else if (clickedNotes.length > 0) {
-        setSelectedMidiTime(clickedNotes[0].time);
-        setSelectedNotes(clickedNotes);
-      } else {
-        setSelectedMidiTime(clickTime);
+      if (editorMode === 'sync') {
+        // In sync mode, click to select time point
+        const note = getNoteAtPosition(x, y, canvas);
+        if (note) {
+          setSelectedMidiTime(note.time);
+        } else {
+          setSelectedMidiTime(clickTime);
+        }
         setSelectedNotes([]);
+      } else {
+        // In adornment mode, click to select notes
+        const note = getNoteAtPosition(x, y, canvas);
+        if (note) {
+          if (e.shiftKey) {
+            setSelectedNotes((prev) => {
+              const exists = prev.some((n) => n.time === note.time && n.midi === note.midi);
+              if (exists) {
+                return prev.filter((n) => !(n.time === note.time && n.midi === note.midi));
+              }
+              return [...prev, note];
+            });
+          } else {
+            setSelectedNotes([note]);
+          }
+        } else if (!e.shiftKey) {
+          setSelectedNotes([]);
+        }
       }
     },
-    [notes, midiZoom, midiScroll]
+    [midiZoom, midiScroll, editorMode, getNoteAtPosition]
   );
 
-  // Scroll Piano Roll
-  const scrollMidi = useCallback(
-    (direction: 'left' | 'right') => {
-      const delta = (5 / midiZoom) * 10;
-      setMidiScroll((prev) => {
-        if (direction === 'left') return Math.max(0, prev - delta);
-        return Math.min(midiDuration - 10, prev + delta);
-      });
+  const handlePianoRollMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = pianoRollRef.current;
+      if (!canvas) return;
+
+      if (isDragging) {
+        const deltaX = e.clientX - dragStartX;
+        const deltaScroll = deltaX / midiZoom;
+        const newScroll = Math.max(0, Math.min(midiDuration - 5, dragStartScroll - deltaScroll));
+        setMidiScroll(newScroll);
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const note = getNoteAtPosition(x, y, canvas);
+      setHoveredNote(note);
     },
-    [midiZoom, midiDuration]
+    [isDragging, dragStartX, dragStartScroll, midiZoom, midiDuration, getNoteAtPosition]
   );
+
+  const handlePianoRollMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  const handlePianoRollMouseLeave = useCallback(() => {
+    setIsDragging(false);
+    setHoveredNote(null);
+  }, []);
+
+  // Wheel zoom on piano roll - needs non-passive listener for preventDefault
+  useEffect(() => {
+    const canvas = pianoRollRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+
+      if (e.ctrlKey || e.metaKey) {
+        // Zoom with Ctrl/Cmd + scroll
+        const zoomDelta = e.deltaY > 0 ? -10 : 10;
+        setMidiZoom((prev) => Math.max(20, Math.min(300, prev + zoomDelta)));
+      } else {
+        // Scroll horizontally
+        setMidiScroll((prev) => {
+          const scrollDelta = e.deltaY / midiZoom;
+          return Math.max(0, Math.min(midiDuration - 5, prev + scrollDelta));
+        });
+      }
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [midiZoom, midiDuration]);
 
   const adornmentTypes: AdornmentType[] = [
-    'wavy',
-    'spark',
-    'punch',
-    'glow',
-    'phrase',
-    'accent',
-    'tremolo',
-    'legato',
+    'wavy', 'spark', 'punch', 'glow', 'phrase', 'accent', 'tremolo', 'legato',
   ];
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-zinc-400">Loading {songId}...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
@@ -495,23 +730,21 @@ export default function EditorPage() {
               Editor: {config?.title || songId}
             </h1>
           </div>
-          <p className="text-zinc-400 text-sm mt-1">
-            Create sync points and add visual adornments
-          </p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || loading}
             className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-zinc-700 rounded-lg text-sm font-medium"
           >
             {saving ? 'Saving...' : 'Save'}
           </button>
           <button
             onClick={handleExport}
-            className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-sm"
+            disabled={loading}
+            className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 rounded-lg text-sm"
           >
-            Export JSON
+            Export
           </button>
           <Link
             href={`/play/${songId}`}
@@ -522,76 +755,199 @@ export default function EditorPage() {
         </div>
       </div>
 
+      {/* Mode Toggle - Prominent */}
+      <div className="bg-zinc-900 rounded-lg p-3 border border-zinc-800">
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-zinc-400 font-medium">Editor Mode:</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setEditorMode('sync');
+                setSelectedNotes([]);
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                editorMode === 'sync'
+                  ? 'bg-green-600 text-white shadow-lg shadow-green-600/30'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+              }`}
+            >
+              Sync Points
+            </button>
+            <button
+              onClick={() => {
+                setEditorMode('adornment');
+                setSelectedMidiTime(null);
+                setSelectedAudioTime(null);
+              }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                editorMode === 'adornment'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+              }`}
+            >
+              Adornments
+            </button>
+          </div>
+          <span className="text-xs text-zinc-500 ml-4">
+            {editorMode === 'sync'
+              ? 'Click waveform for audio time, click piano roll for MIDI time, then Link'
+              : 'Click or Shift+click notes to select, then apply adornment'}
+          </span>
+        </div>
+      </div>
+
       {error && (
         <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 text-red-300">
           {error}
         </div>
       )}
 
+      {loading && (
+        <div className="bg-zinc-900 rounded-lg p-8 border border-zinc-800 flex items-center justify-center">
+          <div className="text-zinc-400">Loading {songId}...</div>
+        </div>
+      )}
+
       {/* Audio Waveform */}
-      <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
+      <div className={`bg-zinc-900 rounded-lg p-4 border border-zinc-800 ${loading ? 'hidden' : ''}`}>
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-semibold text-sm">Audio Waveform</h2>
           <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span>Click to mark audio time</span>
-            {selectedAudioTime !== null && (
-              <span className="text-amber-400 font-mono">
-                Selected: {formatTime(selectedAudioTime)}
-              </span>
+            {editorMode === 'sync' && (
+              <>
+                <span>Click to mark audio time</span>
+                {selectedAudioTime !== null && (
+                  <span className="text-amber-400 font-mono">
+                    Audio: {formatTime(selectedAudioTime)}
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
 
-        <div ref={waveformRef} className="mb-3" />
+        <div
+          onMouseDown={handleAudioMouseDown}
+          onMouseMove={handleAudioMouseMove}
+          onMouseUp={handleAudioMouseUp}
+          onMouseLeave={handleAudioMouseLeave}
+          className={`mb-3 ${isAudioDragging ? 'cursor-grabbing' : ''}`}
+        >
+          <div ref={waveformRef} />
+        </div>
 
         {audioLoaded && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => goBack(30)}
-              className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+          <div className="space-y-3">
+            {/* Full-width position bar */}
+            <div
+              className="relative h-6 bg-zinc-800 rounded cursor-pointer group"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const percent = x / rect.width;
+                seekTo(percent * audioDuration);
+              }}
             >
-              -30s
-            </button>
-            <button
-              onClick={() => goBack(5)}
-              className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
-            >
-              -5s
-            </button>
-            <button
-              onClick={togglePlay}
-              className="px-4 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm"
-            >
-              {isPlaying ? 'Pause' : 'Play'}
-            </button>
-            <button
-              onClick={() => goForward(5)}
-              className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
-            >
-              +5s
-            </button>
-            <button
-              onClick={() => goForward(30)}
-              className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
-            >
-              +30s
-            </button>
-            <span className="ml-auto font-mono text-sm">
-              {formatTime(audioTime)}
-            </span>
+              <div
+                className="absolute h-full bg-blue-600/30 rounded-l"
+                style={{ width: `${(audioTime / audioDuration) * 100}%` }}
+              />
+              <div
+                className="absolute top-0 bottom-0 w-1 bg-blue-500 rounded"
+                style={{ left: `${(audioTime / audioDuration) * 100}%` }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center text-xs text-zinc-400 group-hover:text-zinc-300">
+                Click to seek • {formatTime(audioTime)} / {formatTime(audioDuration)}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => seekTo(audioTime - 30)}
+                className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+              >
+                -30s
+              </button>
+              <button
+                onClick={() => seekTo(audioTime - 5)}
+                className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+              >
+                -5s
+              </button>
+              <button
+                onClick={togglePlay}
+                className="px-4 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm font-medium"
+              >
+                {isPlaying ? 'Pause' : 'Play'}
+              </button>
+              <button
+                onClick={() => seekTo(audioTime + 5)}
+                className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+              >
+                +5s
+              </button>
+              <button
+                onClick={() => seekTo(audioTime + 30)}
+                className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+              >
+                +30s
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-400">Zoom:</span>
+                <button
+                  onClick={() => handleAudioZoom(audioZoom - 20)}
+                  className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min="20"
+                  max="500"
+                  value={audioZoom}
+                  onChange={(e) => handleAudioZoom(Number(e.target.value))}
+                  className="w-24"
+                />
+                <button
+                  onClick={() => handleAudioZoom(audioZoom + 20)}
+                  className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+                >
+                  +
+                </button>
+                <span className="text-xs text-zinc-500 w-16">{audioZoom}px/s</span>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={syncedZoom}
+                  onChange={(e) => setSyncedZoom(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-xs text-zinc-400">Sync zoom with MIDI</span>
+              </label>
+              <span className="text-xs text-zinc-500">Alt+drag to scroll</span>
+            </div>
           </div>
         )}
       </div>
 
       {/* MIDI Piano Roll */}
-      <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
+      <div className={`bg-zinc-900 rounded-lg p-4 border border-zinc-800 ${loading ? 'hidden' : ''}`}>
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-semibold text-sm">MIDI Piano Roll</h2>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span>Click to select MIDI time | Shift+click for notes</span>
-            {selectedMidiTime !== null && (
+          <div className="flex items-center gap-4 text-xs text-zinc-400">
+            <span>Scroll: Mouse wheel | Zoom: Ctrl+wheel | Drag: Alt+drag</span>
+            {editorMode === 'sync' && selectedMidiTime !== null && (
               <span className="text-amber-400 font-mono">
-                Selected: {formatTime(selectedMidiTime)}
+                MIDI: {formatTime(selectedMidiTime)}
+              </span>
+            )}
+            {editorMode === 'adornment' && selectedNotes.length > 0 && (
+              <span className="text-purple-400">
+                {selectedNotes.length} note{selectedNotes.length > 1 ? 's' : ''} selected
               </span>
             )}
           </div>
@@ -599,44 +955,83 @@ export default function EditorPage() {
 
         <canvas
           ref={pianoRollRef}
-          onClick={handlePianoRollClick}
-          className="w-full cursor-crosshair mb-3"
+          onMouseDown={handlePianoRollMouseDown}
+          onMouseMove={handlePianoRollMouseMove}
+          onMouseUp={handlePianoRollMouseUp}
+          onMouseLeave={handlePianoRollMouseLeave}
+          className={`w-full mb-3 ${isDragging ? 'cursor-grabbing' : hoveredNote ? 'cursor-pointer' : 'cursor-crosshair'}`}
           style={{ height: 200 }}
         />
 
         {midiLoaded && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => scrollMidi('left')}
-              className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+          <div className="space-y-3">
+            {/* Full-width position bar */}
+            <div
+              className="relative h-6 bg-zinc-800 rounded cursor-pointer group"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const percent = x / rect.width;
+                setMidiScroll(Math.max(0, percent * midiDuration - 5));
+              }}
             >
-              ← Scroll
-            </button>
-            <button
-              onClick={() => scrollMidi('right')}
-              className="px-3 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
-            >
-              Scroll →
-            </button>
-            <div className="flex items-center gap-2 ml-4">
-              <span className="text-xs text-zinc-400">Zoom:</span>
-              <input
-                type="range"
-                min="20"
-                max="200"
-                value={midiZoom}
-                onChange={(e) => setMidiZoom(Number(e.target.value))}
-                className="w-24"
+              <div
+                className="absolute h-full bg-green-600/30 rounded-l"
+                style={{ width: `${(midiScroll / Math.max(1, midiDuration - 5)) * 100}%` }}
               />
+              <div
+                className="absolute top-0 bottom-0 w-1 bg-green-500 rounded"
+                style={{ left: `${(midiScroll / Math.max(1, midiDuration - 5)) * 100}%` }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center text-xs text-zinc-400 group-hover:text-zinc-300">
+                Click to scroll • {formatTime(midiScroll)} / {formatTime(midiDuration)}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-400">Zoom:</span>
+                <button
+                  onClick={() => handleMidiZoom(midiZoom - 20)}
+                  className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min="20"
+                  max="500"
+                  value={midiZoom}
+                  onChange={(e) => handleMidiZoom(Number(e.target.value))}
+                  className="w-24"
+                />
+                <button
+                  onClick={() => handleMidiZoom(midiZoom + 20)}
+                  className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs"
+                >
+                  +
+                </button>
+                <span className="text-xs text-zinc-500 w-16">{midiZoom}px/s</span>
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={syncedZoom}
+                  onChange={(e) => setSyncedZoom(e.target.checked)}
+                  className="rounded"
+                />
+                <span className="text-xs text-zinc-400">Sync zoom with Audio</span>
+              </label>
+              <span className="text-xs text-zinc-500">Scroll: wheel | Zoom: Ctrl+wheel | Drag: Alt+drag</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Sync Point Creator */}
-      {midiLoaded && audioLoaded && (
-        <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
-          <h2 className="font-semibold text-sm mb-3">Create Sync Point</h2>
+      {/* Sync Mode Controls */}
+      {editorMode === 'sync' && midiLoaded && audioLoaded && (
+        <div className="bg-zinc-900 rounded-lg p-4 border-2 border-green-600/50">
+          <h2 className="font-semibold text-sm mb-3 text-green-400">Create Sync Point</h2>
 
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
@@ -646,37 +1041,39 @@ export default function EditorPage() {
                   selectedMidiTime !== null ? 'text-amber-400' : 'text-zinc-600'
                 }`}
               >
-                {selectedMidiTime !== null
-                  ? formatTime(selectedMidiTime)
-                  : 'Not selected'}
+                {selectedMidiTime !== null ? formatTime(selectedMidiTime) : 'Click piano roll'}
               </span>
             </div>
 
-            <span className="text-zinc-600">↔</span>
+            <span className="text-green-400 font-bold">↔</span>
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-zinc-400">Audio:</span>
               <span
                 className={`font-mono text-sm ${
-                  selectedAudioTime !== null
-                    ? 'text-amber-400'
-                    : 'text-zinc-600'
+                  selectedAudioTime !== null ? 'text-amber-400' : 'text-zinc-600'
                 }`}
               >
-                {selectedAudioTime !== null
-                  ? formatTime(selectedAudioTime)
-                  : 'Not selected'}
+                {selectedAudioTime !== null ? formatTime(selectedAudioTime) : 'Click waveform'}
               </span>
             </div>
 
             <button
               onClick={createSyncPoint}
-              disabled={
-                selectedMidiTime === null || selectedAudioTime === null
-              }
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-lg text-sm"
+              disabled={selectedMidiTime === null || selectedAudioTime === null}
+              className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-lg text-sm font-medium"
             >
               Link Points
+            </button>
+
+            <button
+              onClick={() => {
+                setSelectedMidiTime(null);
+                setSelectedAudioTime(null);
+              }}
+              className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-xs"
+            >
+              Clear Selection
             </button>
           </div>
 
@@ -693,8 +1090,7 @@ export default function EditorPage() {
                   >
                     <span className="text-green-400">{sp.label}</span>
                     <span className="text-zinc-400">
-                      M:{formatTime(sp.midiTime)} ↔ A:
-                      {formatTime(sp.audioTime)}
+                      M:{formatTime(sp.midiTime)} ↔ A:{formatTime(sp.audioTime)}
                     </span>
                     <button
                       onClick={() => deleteSyncPoint(sp.id)}
@@ -710,10 +1106,10 @@ export default function EditorPage() {
         </div>
       )}
 
-      {/* Adornments */}
-      {midiLoaded && audioLoaded && (
-        <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
-          <h2 className="font-semibold text-sm mb-3">Visual Adornments</h2>
+      {/* Adornment Mode Controls */}
+      {editorMode === 'adornment' && midiLoaded && audioLoaded && (
+        <div className="bg-zinc-900 rounded-lg p-4 border-2 border-purple-600/50">
+          <h2 className="font-semibold text-sm mb-3 text-purple-400">Visual Adornments</h2>
 
           <div className="flex items-center gap-4 mb-3">
             <span className="text-xs text-zinc-400">Scope:</span>
@@ -721,17 +1117,17 @@ export default function EditorPage() {
               onClick={() => setAdornmentScope('section')}
               className={`px-3 py-1 rounded text-xs ${
                 adornmentScope === 'section'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-purple-600 text-white'
                   : 'bg-zinc-700 text-zinc-400'
               }`}
             >
-              Section (selected notes)
+              Selected Notes
             </button>
             <button
               onClick={() => setAdornmentScope('track')}
               className={`px-3 py-1 rounded text-xs ${
                 adornmentScope === 'track'
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-purple-600 text-white'
                   : 'bg-zinc-700 text-zinc-400'
               }`}
             >
@@ -741,17 +1137,21 @@ export default function EditorPage() {
             {adornmentScope === 'track' && tracks.length > 0 && (
               <select
                 value={selectedTrackForAdornment}
-                onChange={(e) =>
-                  setSelectedTrackForAdornment(Number(e.target.value))
-                }
+                onChange={(e) => setSelectedTrackForAdornment(Number(e.target.value))}
                 className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs"
               >
                 {tracks.map((t, i) => (
-                  <option key={i} value={i}>
-                    {t.name}
-                  </option>
+                  <option key={i} value={i}>{t.name}</option>
                 ))}
               </select>
+            )}
+
+            {adornmentScope === 'section' && (
+              <span className="text-xs text-zinc-500">
+                {selectedNotes.length === 0
+                  ? 'Click notes in piano roll to select'
+                  : `${selectedNotes.length} note${selectedNotes.length > 1 ? 's' : ''} selected`}
+              </span>
             )}
           </div>
 
@@ -760,20 +1160,12 @@ export default function EditorPage() {
               <button
                 key={type}
                 onClick={() => addAdornment(type)}
-                disabled={
-                  adornmentScope === 'section' && selectedNotes.length === 0
-                }
+                disabled={adornmentScope === 'section' && selectedNotes.length === 0}
                 className="px-3 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-700 disabled:text-zinc-500 rounded text-xs"
               >
                 {ADORNMENT_LABELS[type]}
               </button>
             ))}
-
-            {adornmentScope === 'section' && selectedNotes.length > 0 && (
-              <span className="text-xs text-amber-400 ml-2">
-                {selectedNotes.length} notes selected
-              </span>
-            )}
           </div>
 
           {adornments.length > 0 && (
@@ -786,14 +1178,10 @@ export default function EditorPage() {
                   <span className="text-purple-400">{a.label}</span>
                   <span className="text-zinc-500">{a.scope}</span>
                   {a.trackIndex !== undefined && (
-                    <span className="text-zinc-400">
-                      Track {a.trackIndex + 1}
-                    </span>
+                    <span className="text-zinc-400">Track {a.trackIndex + 1}</span>
                   )}
                   <button
-                    onClick={() =>
-                      setAdornments((prev) => prev.filter((x) => x.id !== a.id))
-                    }
+                    onClick={() => setAdornments((prev) => prev.filter((x) => x.id !== a.id))}
                     className="text-red-400 hover:text-red-300"
                   >
                     ×
@@ -806,7 +1194,7 @@ export default function EditorPage() {
       )}
 
       {/* Track Legend */}
-      {tracks.length > 0 && (
+      {tracks.length > 0 && !loading && (
         <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
           <h2 className="font-semibold text-sm mb-2">Tracks</h2>
           <div className="flex flex-wrap gap-2">

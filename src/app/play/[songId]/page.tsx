@@ -453,12 +453,20 @@ export default function PlayPage() {
               : 'No sync points - go to Editor to create them'}
           </p>
         </div>
-        <Link
-          href={`/editor/${songId}`}
-          className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-sm"
-        >
-          Edit →
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href={`/play/${songId}/cinema`}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium"
+          >
+            Cinema Mode
+          </Link>
+          <Link
+            href={`/editor/${songId}`}
+            className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-sm"
+          >
+            Edit →
+          </Link>
+        </div>
       </div>
 
       {error && (

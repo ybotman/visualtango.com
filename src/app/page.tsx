@@ -141,6 +141,21 @@ export default function CatalogPage() {
                       >
                         Play
                       </Link>
+                      <Link
+                        href={`/play/${song.id}/cinema`}
+                        className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                          song.hasMidi && song.hasAudio
+                            ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                            : 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                        }`}
+                        onClick={(e) => {
+                          if (!song.hasMidi || !song.hasAudio) {
+                            e.preventDefault();
+                          }
+                        }}
+                      >
+                        Cinema
+                      </Link>
                     </div>
                   </td>
                 </tr>

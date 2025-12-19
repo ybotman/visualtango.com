@@ -1,0 +1,186 @@
+{
+  "id": "bach_846",
+  "title": "Bach 846",
+  "midiFile": "bach_846.mid",
+  "audioFile": "bach_846.mp3",
+  "syncPoints": [
+    {
+      "id": "sp-1766098537941-o2c3gooi6",
+      "midiTime": 0.0016891895833333335,
+      "audioTime": 1.25647760461285,
+      "label": "Sync 1"
+    },
+    {
+      "id": "sp-1766098565259-gpe3efwwm",
+      "midiTime": 6.395694852083333,
+      "audioTime": 8.81710053217316,
+      "label": "Sync 2"
+    },
+    {
+      "id": "sp-1766101715411-tukhskt7k",
+      "midiTime": 14.35,
+      "audioTime": 15.823031984729292,
+      "label": "Sync 11"
+    },
+    {
+      "id": "sp-1766101654333-121g9hmom",
+      "midiTime": 15.891011737499996,
+      "audioTime": 19.85258144831461,
+      "label": "Sync 10"
+    },
+    {
+      "id": "sp-1766101443206-i2b0mtp6j",
+      "midiTime": 18.98,
+      "audioTime": 24.452220211411063,
+      "label": "Sync 9"
+    },
+    {
+      "id": "sp-1766101798304-ap1rd0tkg",
+      "midiTime": 22.275,
+      "audioTime": 29.30790217989357,
+      "label": "Sync 12"
+    },
+    {
+      "id": "sp-1766098608802-oozncnsbx",
+      "midiTime": 28.58413193125,
+      "audioTime": 36.437850533772654,
+      "label": "Sync 3"
+    },
+    {
+      "id": "sp-1766098849820-jzdbrnvzb",
+      "midiTime": 31.810175879166668,
+      "audioTime": 90.46638753212521,
+      "label": "Sync 8"
+    },
+    {
+      "id": "sp-1766098720222-jza64fflu",
+      "midiTime": 47.66581068541669,
+      "audioTime": 59.68268621911039,
+      "label": "Sync 4"
+    },
+    {
+      "id": "sp-1766098741579-ushfgxhhb",
+      "midiTime": 54.08863768541669,
+      "audioTime": 67.01213891268534,
+      "label": "Sync 5"
+    },
+    {
+      "id": "sp-1766098774491-4tvs28inq",
+      "midiTime": 63.75855675000002,
+      "audioTime": 77.69219855189456,
+      "label": "Sync 6"
+    },
+    {
+      "id": "sp-1766098818907-kzznjdxor",
+      "midiTime": 70.22317957083335,
+      "audioTime": 85.23106417957166,
+      "label": "Sync 7"
+    },
+    {
+      "id": "sp-1766102137020-w7dr76pwz",
+      "midiTime": 73.375,
+      "audioTime": 88.16981076631039,
+      "label": "Sync 13"
+    },
+    {
+      "id": "sp-1766102184573-ukhx477sw",
+      "midiTime": 98.95,
+      "audioTime": 119.49444028165884,
+      "label": "Sync 14"
+    },
+    {
+      "id": "sp-1766102276704-8pl0rxe7l",
+      "midiTime": 105.59712143749998,
+      "audioTime": 132.65153042553192,
+      "label": "Sync 15"
+    },
+    {
+      "id": "sp-1766102473817-3emyq3nyz",
+      "midiTime": 109.61864406779661,
+      "audioTime": 131.91668185607008,
+      "label": "Sync 17"
+    },
+    {
+      "id": "sp-1766102348751-f0q0wg1rz",
+      "midiTime": 117.71186440677965,
+      "audioTime": 146.25759259824784,
+      "label": "Sync 16"
+    }
+  ],
+  "tracks": [
+    {
+      "name": "Piano right",
+      "noteCount": 415,
+      "color": "#3B82F6",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Piano left",
+      "noteCount": 134,
+      "color": "#10B981",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Fuga 1",
+      "noteCount": 220,
+      "color": "#F59E0B",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Fuga 2",
+      "noteCount": 199,
+      "color": "#EF4444",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Fuga 3",
+      "noteCount": 175,
+      "color": "#8B5CF6",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Fuga 4",
+      "noteCount": 141,
+      "color": "#EC4899",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    }
+  ],
+  "adornments": [
+    {
+      "id": "ad-1766101269666-tkbdmmfdw",
+      "type": "punch",
+      "scope": "section",
+      "startTime": 6.395694852083333,
+      "endTime": 7.966442602083333,
+      "label": "Punch"
+    },
+    {
+      "id": "ad-1766101284621-srhv7sh23",
+      "type": "glow",
+      "scope": "section",
+      "startTime": 6.395694852083333,
+      "endTime": 7.966442602083333,
+      "label": "Glow"
+    }
+  ],
+  "createdAt": "2025-12-18T22:54:59.723Z",
+  "updatedAt": "2025-12-19T00:22:25.238Z"
+}

@@ -18,6 +18,8 @@ export default function CinemaPlayPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const howlRef = useRef<Howl | null>(null);
   const animationRef = useRef<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   // State
   const [loading, setLoading] = useState(true);
@@ -38,6 +40,8 @@ export default function CinemaPlayPage() {
   const [showControls, setShowControls] = useState(true);
   const [showTrackPanel, setShowTrackPanel] = useState(false);
   const [viewMode, setViewMode] = useState<'bands' | 'full'>('bands'); // bands = separate columns, full = merged
+  const [showWatermark, setShowWatermark] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
 
   // Track visibility helpers
   const toggleTrackMute = useCallback((trackIndex: number) => {
@@ -366,7 +370,33 @@ export default function CinemaPlayPage() {
     ctx.textAlign = 'left';
     ctx.fillText('NOW', 10, playheadY - 10);
 
-  }, [notes, tracks, audioTime, syncPoints, secondsVisible, isTrackVisible, viewMode]);
+    // Watermark (for video export)
+    if (showWatermark) {
+      ctx.globalAlpha = 0.7;
+
+      // Main watermark - bottom right
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText('VisualTango.com', canvas.width - 15, 30);
+
+      // Secondary text
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = '#aaaaaa';
+      ctx.fillText('Become a TangoTiempo.com organizer', canvas.width - 15, 48);
+
+      // Song title
+      if (config?.title) {
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.fillText(config.title, 15, 30);
+      }
+
+      ctx.globalAlpha = 1;
+    }
+
+  }, [notes, tracks, audioTime, syncPoints, secondsVisible, isTrackVisible, viewMode, showWatermark, config]);
 
   // Playback controls
   const togglePlay = useCallback(() => {
@@ -397,6 +427,66 @@ export default function CinemaPlayPage() {
       document.exitFullscreen().then(() => {
         setIsFullscreen(false);
       }).catch(() => {});
+    }
+  }, []);
+
+  // Video recording functions
+  const startRecording = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Ensure watermark is shown during recording
+    setShowWatermark(true);
+
+    try {
+      const stream = canvas.captureStream(30); // 30 FPS
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9',
+        videoBitsPerSecond: 5000000, // 5 Mbps for good quality
+      });
+
+      recordedChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${songId}-visualtango.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setIsRecording(false);
+      };
+
+      mediaRecorder.start(100); // Collect data every 100ms
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+
+      // Auto-start playback when recording starts
+      if (howlRef.current && !isPlaying) {
+        howlRef.current.play();
+        setIsPlaying(true);
+      }
+    } catch (err) {
+      console.error('Failed to start recording:', err);
+      alert('Recording not supported in this browser. Try Chrome or Firefox.');
+    }
+  }, [songId, isPlaying]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    // Also pause playback
+    if (howlRef.current) {
+      howlRef.current.pause();
+      setIsPlaying(false);
     }
   }, []);
 
@@ -513,6 +603,32 @@ export default function CinemaPlayPage() {
                   }`}
                 >
                   Tracks
+                </button>
+                {/* Record Button */}
+                {isRecording ? (
+                  <button
+                    onClick={stopRecording}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-white text-sm flex items-center gap-1 animate-pulse"
+                  >
+                    <span className="w-2 h-2 bg-white rounded-full"></span>
+                    Stop Recording
+                  </button>
+                ) : (
+                  <button
+                    onClick={startRecording}
+                    className="px-3 py-1 bg-red-600/80 hover:bg-red-600 rounded text-white text-sm flex items-center gap-1"
+                  >
+                    <span className="w-2 h-2 bg-white rounded-full"></span>
+                    Record
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowWatermark((prev) => !prev)}
+                  className={`px-3 py-1 rounded text-white text-sm ${
+                    showWatermark ? 'bg-white/30' : 'bg-white/10 hover:bg-white/20'
+                  }`}
+                >
+                  Watermark
                 </button>
                 <button
                   onClick={toggleFullscreen}

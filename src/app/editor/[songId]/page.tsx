@@ -83,6 +83,15 @@ export default function EditorPage() {
   // State - Synced Zoom
   const [syncedZoom, setSyncedZoom] = useState(true); // Keep audio and MIDI zoom in sync
 
+  // State - Toast notification
+  const [toast, setToast] = useState<string | null>(null);
+
+  // Show toast notification
+  const showToast = useCallback((message: string, duration = 2000) => {
+    setToast(message);
+    setTimeout(() => setToast(null), duration);
+  }, []);
+
   // Load files on mount
   useEffect(() => {
     let isMounted = true;
@@ -411,14 +420,14 @@ export default function EditorPage() {
       await saveSongConfig(songId, updatedConfig);
       console.log('Save successful!');
       setConfig(updatedConfig);
-      alert('Saved! You can now play this song with sync.');
+      showToast('Saved!');
     } catch (err) {
       console.error('Save failed:', err);
       setError(`Failed to save: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setSaving(false);
     }
-  }, [songId, config, syncPoints, tracks, adornments]);
+  }, [songId, config, syncPoints, tracks, adornments, showToast]);
 
   // Export Config
   const handleExport = useCallback(() => {
@@ -715,7 +724,15 @@ export default function EditorPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-pulse">
+          <div className="bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg font-medium">
+            {toast}
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -1100,6 +1117,132 @@ export default function EditorPage() {
                     </button>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sync Analysis - Visual Bar (synced with MIDI piano roll zoom/scroll) */}
+          {syncPoints.length >= 2 && (
+            <div className="mt-4 pt-4 border-t border-zinc-700">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs text-zinc-400">
+                  Sync Analysis (synced with MIDI view)
+                </h3>
+                <div className="flex items-center gap-3 text-xs text-zinc-500">
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 bg-green-600 rounded-sm"></span> OK
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 bg-yellow-600 rounded-sm"></span> Rubato
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 bg-red-600 rounded-sm"></span> Check
+                  </span>
+                </div>
+              </div>
+              {(() => {
+                const sorted = [...syncPoints].sort((a, b) => a.midiTime - b.midiTime);
+
+                // Calculate intervals and their status
+                const intervals: Array<{
+                  startTime: number;
+                  endTime: number;
+                  ratio: number;
+                  label: string;
+                  midiDelta: number;
+                  audioDelta: number;
+                }> = [];
+
+                for (let i = 1; i < sorted.length; i++) {
+                  const prev = sorted[i - 1];
+                  const curr = sorted[i];
+                  const midiDelta = curr.midiTime - prev.midiTime;
+                  const audioDelta = curr.audioTime - prev.audioTime;
+                  const ratio = midiDelta > 0 ? audioDelta / midiDelta : 1;
+
+                  intervals.push({
+                    startTime: prev.midiTime,
+                    endTime: curr.midiTime,
+                    ratio,
+                    label: `${prev.label}→${curr.label}`,
+                    midiDelta,
+                    audioDelta,
+                  });
+                }
+
+                const avgRatio = intervals.length > 0
+                  ? intervals.reduce((sum, i) => sum + i.ratio, 0) / intervals.length
+                  : 1;
+
+                // Calculate visible window based on MIDI piano roll
+                const containerWidth = 800; // Approximate, will be full width
+                const visibleDuration = containerWidth / midiZoom;
+                const visibleStart = midiScroll;
+                const visibleEnd = midiScroll + visibleDuration;
+
+                return (
+                  <div className="relative h-8 bg-zinc-800 rounded overflow-hidden group">
+                    {/* Colored segments - positioned based on midiZoom/midiScroll */}
+                    {intervals.map((interval, i) => {
+                      const ratioDeviation = Math.abs(interval.ratio - avgRatio);
+                      const percentDiff = Math.abs(interval.ratio - 1) * 100;
+
+                      let bgColor = 'bg-green-600/60';
+                      if (ratioDeviation > 0.15 || percentDiff > 20) {
+                        bgColor = 'bg-red-600/60';
+                      } else if (ratioDeviation > 0.05 || percentDiff > 10) {
+                        bgColor = 'bg-yellow-600/60';
+                      }
+
+                      // Position based on midiZoom and midiScroll (same as piano roll)
+                      const leftPx = (interval.startTime - midiScroll) * midiZoom;
+                      const widthPx = (interval.endTime - interval.startTime) * midiZoom;
+
+                      // Skip if completely outside visible area
+                      if (leftPx + widthPx < 0 || leftPx > containerWidth) return null;
+
+                      return (
+                        <div
+                          key={i}
+                          className={`absolute top-0 bottom-0 ${bgColor} hover:opacity-80 cursor-help border-r border-zinc-700`}
+                          style={{
+                            left: `${leftPx}px`,
+                            width: `${Math.max(widthPx, 2)}px`,
+                          }}
+                          title={`${interval.label}: M=${interval.midiDelta.toFixed(1)}s A=${interval.audioDelta.toFixed(1)}s (${(interval.ratio * 100).toFixed(0)}%)`}
+                        />
+                      );
+                    })}
+
+                    {/* Sync point markers - positioned based on midiZoom/midiScroll */}
+                    {sorted.map((sp, i) => {
+                      const leftPx = (sp.midiTime - midiScroll) * midiZoom;
+
+                      // Skip if outside visible area
+                      if (leftPx < -20 || leftPx > containerWidth + 20) return null;
+
+                      return (
+                        <div
+                          key={sp.id}
+                          className="absolute top-0 bottom-0 w-0.5 bg-white"
+                          style={{ left: `${leftPx}px` }}
+                        >
+                          <span className="absolute -top-0.5 left-1 text-[9px] text-white font-medium whitespace-nowrap">
+                            {i + 1}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                    {/* Current view indicator */}
+                    <div className="absolute top-0 bottom-0 left-0 right-0 pointer-events-none border-l-2 border-r-2 border-blue-500/30" />
+                  </div>
+                );
+              })()}
+              <div className="flex justify-between mt-1 text-[10px] text-zinc-500">
+                <span>{formatTime(midiScroll)}</span>
+                <span className="text-zinc-400">Synced with piano roll • Hover for details</span>
+                <span>{formatTime(midiScroll + 10)}</span>
               </div>
             </div>
           )}

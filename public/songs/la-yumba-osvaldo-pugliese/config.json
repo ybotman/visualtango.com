@@ -1,0 +1,214 @@
+{
+  "id": "la-yumba-osvaldo-pugliese",
+  "title": "La-Yumba-Osvaldo-Pugliese",
+  "midiFile": "la-yumba-osvaldo-pugliese.mid",
+  "audioFile": "la-yumba-osvaldo-pugliese.mp3",
+  "syncPoints": [
+    {
+      "id": "sp-1766165374950-ansk9e3vc",
+      "midiTime": 0.25,
+      "audioTime": 2.3887007092257,
+      "label": "Sync 1"
+    },
+    {
+      "id": "sp-1766165407214-lwtdqovgw",
+      "midiTime": 2.05,
+      "audioTime": 4.139301316710277,
+      "label": "Sync 3"
+    },
+    {
+      "id": "sp-1766165681141-kgymxmkbh",
+      "midiTime": 3,
+      "audioTime": 5.137885569100818,
+      "label": "Sync 4"
+    },
+    {
+      "id": "sp-1766165690443-dfddpjnu1",
+      "midiTime": 4,
+      "audioTime": 6.16013847616334,
+      "label": "Sync 5"
+    },
+    {
+      "id": "sp-1766165726880-20hdp84uj",
+      "midiTime": 5,
+      "audioTime": 7.1750719013330215,
+      "label": "Sync 6"
+    },
+    {
+      "id": "sp-1766165759757-aetlpjnm8",
+      "midiTime": 6,
+      "audioTime": 8.171980125542396,
+      "label": "Sync 7"
+    },
+    {
+      "id": "sp-1766165782513-j2p4bh3qd",
+      "midiTime": 7,
+      "audioTime": 9.198895620714593,
+      "label": "Sync 8"
+    },
+    {
+      "id": "sp-1766165858310-8recm8h95",
+      "midiTime": 10,
+      "audioTime": 12.238482283275893,
+      "label": "Sync 9"
+    },
+    {
+      "id": "sp-1766165996405-ftfyq8zkd",
+      "midiTime": 14.21875,
+      "audioTime": 16.519466373778403,
+      "label": "Sync 10"
+    },
+    {
+      "id": "sp-1766166053949-omenv1xpg",
+      "midiTime": 19.979166666666657,
+      "audioTime": 22.130146059858294,
+      "label": "Sync 11"
+    },
+    {
+      "id": "sp-1766166097271-fpn3convq",
+      "midiTime": 26,
+      "audioTime": 28.178427504183976,
+      "label": "Sync 12"
+    },
+    {
+      "id": "sp-1766166135163-mozmajsfn",
+      "midiTime": 30.25,
+      "audioTime": 32.53608958134339,
+      "label": "Sync 13"
+    },
+    {
+      "id": "sp-1766166391593-m2kp1tg1e",
+      "midiTime": 49.97979090170235,
+      "audioTime": 52.186526477134144,
+      "label": "Sync 14"
+    },
+    {
+      "id": "sp-1766166432063-s8bvfdr1w",
+      "midiTime": 62.5,
+      "audioTime": 64.32083097094463,
+      "label": "Sync 15"
+    },
+    {
+      "id": "sp-1766166456843-r1bf1hiz8",
+      "midiTime": 74,
+      "audioTime": 75.8781330113355,
+      "label": "Sync 16"
+    },
+    {
+      "id": "sp-1766166492527-rm73emdie",
+      "midiTime": 84,
+      "audioTime": 86.01299787752443,
+      "label": "Sync 17"
+    },
+    {
+      "id": "sp-1766166554031-03itr44dn",
+      "midiTime": 94.5,
+      "audioTime": 96.2304273038126,
+      "label": "Sync 18"
+    },
+    {
+      "id": "sp-1766166637536-aobc9xt13",
+      "midiTime": 108,
+      "audioTime": 110.1388658868404,
+      "label": "Sync 19"
+    },
+    {
+      "id": "sp-1766166722170-7lcq9j239",
+      "midiTime": 124,
+      "audioTime": 126.23018642,
+      "label": "Sync 20"
+    },
+    {
+      "id": "sp-1766165387384-ce6wwijha",
+      "midiTime": 163.91451946457988,
+      "audioTime": 165.23035011199062,
+      "label": "Sync 2"
+    }
+  ],
+  "tracks": [
+    {
+      "name": "Track 1",
+      "noteCount": 425,
+      "color": "#3B82F6",
+      "instrument": "violin",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Track 2",
+      "noteCount": 521,
+      "color": "#10B981",
+      "instrument": "tango accordion",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Bandoneon",
+      "noteCount": 237,
+      "color": "#F59E0B",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Track 4",
+      "noteCount": 93,
+      "color": "#EF4444",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Grand Piano",
+      "noteCount": 849,
+      "color": "#8B5CF6",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Grand Piano",
+      "noteCount": 515,
+      "color": "#EC4899",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Track 7",
+      "noteCount": 223,
+      "color": "#06B6D4",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Track 8",
+      "noteCount": 273,
+      "color": "#84CC16",
+      "instrument": "contrabass",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Track 9",
+      "noteCount": 214,
+      "color": "#3B82F6",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    }
+  ],
+  "adornments": [],
+  "createdAt": "2025-12-19T16:54:50.217Z",
+  "updatedAt": "2025-12-19T17:53:26.265Z"
+}

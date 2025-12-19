@@ -428,7 +428,13 @@ export default function EditorPage() {
       showToast('Saved!');
     } catch (err) {
       console.error('Save failed:', err);
-      setError(`Failed to save: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      // Show as toast for read-only errors, otherwise set error state
+      if (message.includes('Read-only')) {
+        showToast(message, 5000); // Show for 5 seconds
+      } else {
+        setError(`Failed to save: ${message}`);
+      }
     } finally {
       setSaving(false);
     }

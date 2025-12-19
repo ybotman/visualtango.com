@@ -26,6 +26,17 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ songId: string }> }
 ) {
+  // Check if running on Vercel (read-only filesystem)
+  if (process.env.VERCEL) {
+    return NextResponse.json(
+      {
+        error: 'Read-only in production. To request edit access, contact tobybalsley in Boston on Facebook.',
+        readOnly: true
+      },
+      { status: 403 }
+    );
+  }
+
   const { songId } = await params;
   const songDir = path.join(SONGS_DIR, songId);
   const configPath = path.join(songDir, 'config.json');

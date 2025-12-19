@@ -41,7 +41,8 @@ export async function saveSongConfig(songId: string, config: SongConfig): Promis
   });
 
   if (!response.ok) {
-    throw new Error('Failed to save config');
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to save config');
   }
 }
 

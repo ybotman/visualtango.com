@@ -12,20 +12,20 @@
     },
     {
       "id": "sp-1766165407214-lwtdqovgw",
-      "midiTime": 2.05,
-      "audioTime": 4.139301316710277,
+      "midiTime": 2.0098393574297186,
+      "audioTime": 4.111840801189962,
       "label": "Sync 3"
     },
     {
       "id": "sp-1766165681141-kgymxmkbh",
       "midiTime": 3,
-      "audioTime": 5.137885569100818,
+      "audioTime": 5.130517899276067,
       "label": "Sync 4"
     },
     {
       "id": "sp-1766165690443-dfddpjnu1",
       "midiTime": 4,
-      "audioTime": 6.16013847616334,
+      "audioTime": 6.115636749297273,
       "label": "Sync 5"
     },
     {
@@ -67,7 +67,7 @@
     {
       "id": "sp-1766166097271-fpn3convq",
       "midiTime": 26,
-      "audioTime": 28.178427504183976,
+      "audioTime": 28.15333643885998,
       "label": "Sync 12"
     },
     {
@@ -210,5 +210,5 @@
   ],
   "adornments": [],
   "createdAt": "2025-12-19T16:54:50.217Z",
-  "updatedAt": "2025-12-19T17:53:26.265Z"
+  "updatedAt": "2025-12-19T18:11:07.375Z"
 }

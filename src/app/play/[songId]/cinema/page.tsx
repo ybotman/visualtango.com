@@ -43,6 +43,9 @@ export default function CinemaPlayPage() {
   const [showWatermark, setShowWatermark] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
 
+  // A/V Sync offset - positive = visual ahead, negative = visual behind
+  const [avOffset, setAvOffset] = useState(-50); // Default -50ms (visual slightly ahead to compensate for rendering delay)
+
   // Track visibility helpers
   const toggleTrackMute = useCallback((trackIndex: number) => {
     setTracks((prev) =>
@@ -185,7 +188,9 @@ export default function CinemaPlayPage() {
     }
 
     // Calculate MIDI time from audio time using sync points
-    const midiTime = audioToMidiTime(audioTime, syncPoints);
+    // Apply A/V offset to compensate for rendering delay (offset in ms, convert to seconds)
+    const adjustedAudioTime = audioTime + (avOffset / 1000);
+    const midiTime = audioToMidiTime(adjustedAudioTime, syncPoints);
 
     // Playhead is at center of screen
     const playheadY = canvas.height / 2;
@@ -396,7 +401,7 @@ export default function CinemaPlayPage() {
       ctx.globalAlpha = 1;
     }
 
-  }, [notes, tracks, audioTime, syncPoints, secondsVisible, isTrackVisible, viewMode, showWatermark, config]);
+  }, [notes, tracks, audioTime, syncPoints, secondsVisible, isTrackVisible, viewMode, showWatermark, config, avOffset]);
 
   // Playback controls
   const togglePlay = useCallback(() => {
@@ -738,7 +743,7 @@ export default function CinemaPlayPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2">
                     <span className="text-white/70 text-sm">Zoom:</span>
                     <button
@@ -753,6 +758,32 @@ export default function CinemaPlayPage() {
                       className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-white text-sm"
                     >
                       +
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/70 text-sm">A/V Sync:</span>
+                    <button
+                      onClick={() => setAvOffset((o) => o - 25)}
+                      className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-white text-sm"
+                      title="Visual earlier (if notes appear late)"
+                    >
+                      ←
+                    </button>
+                    <span className={`text-sm w-16 text-center ${avOffset === 0 ? 'text-white' : avOffset < 0 ? 'text-green-400' : 'text-amber-400'}`}>
+                      {avOffset > 0 ? '+' : ''}{avOffset}ms
+                    </span>
+                    <button
+                      onClick={() => setAvOffset((o) => o + 25)}
+                      className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-white text-sm"
+                      title="Visual later (if notes appear early)"
+                    >
+                      →
+                    </button>
+                    <button
+                      onClick={() => setAvOffset(0)}
+                      className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded text-white/50 text-xs"
+                    >
+                      Reset
                     </button>
                   </div>
                 </div>

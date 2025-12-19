@@ -74,6 +74,11 @@ export default function EditorPage() {
   const [dragStartX, setDragStartX] = useState(0);
   const [dragStartScroll, setDragStartScroll] = useState(0);
 
+  // State - Dragging sync points on MIDI piano roll
+  const [draggingSyncPointId, setDraggingSyncPointId] = useState<string | null>(null);
+  const [dragSyncStartX, setDragSyncStartX] = useState(0);
+  const [dragSyncStartTime, setDragSyncStartTime] = useState(0);
+
   // State - Audio Zoom & Scroll
   const [audioZoom, setAudioZoom] = useState(50); // WaveSurfer zoom: pixels per second
   const [isAudioDragging, setIsAudioDragging] = useState(false);
@@ -448,6 +453,21 @@ export default function EditorPage() {
     });
   }, [config, syncPoints, tracks, adornments]);
 
+  // Get sync point at position on MIDI piano roll
+  const getSyncPointAtPosition = useCallback(
+    (x: number): SyncPoint | null => {
+      const hitThreshold = 10; // pixels
+      for (const sp of syncPoints) {
+        const spX = (sp.midiTime - midiScroll) * midiZoom;
+        if (Math.abs(x - spX) < hitThreshold) {
+          return sp;
+        }
+      }
+      return null;
+    },
+    [syncPoints, midiScroll, midiZoom]
+  );
+
   // Get note at position helper
   const getNoteAtPosition = useCallback(
     (x: number, y: number, canvas: HTMLCanvasElement): Note | null => {
@@ -616,7 +636,7 @@ export default function EditorPage() {
       const canvas = pianoRollRef.current;
       if (!canvas) return;
 
-      // Middle mouse button or Alt+click for dragging
+      // Middle mouse button or Alt+click for dragging the view
       if (e.button === 1 || e.altKey) {
         setIsDragging(true);
         setDragStartX(e.clientX);
@@ -630,7 +650,18 @@ export default function EditorPage() {
       const y = e.clientY - rect.top;
       const clickTime = x / midiZoom + midiScroll;
 
+      // Check if clicking on a sync point marker (for dragging)
       if (editorMode === 'sync') {
+        const syncPoint = getSyncPointAtPosition(x);
+        if (syncPoint) {
+          // Start dragging this sync point
+          setDraggingSyncPointId(syncPoint.id);
+          setDragSyncStartX(e.clientX);
+          setDragSyncStartTime(syncPoint.midiTime);
+          e.preventDefault();
+          return;
+        }
+
         // In sync mode, click to select time point
         const note = getNoteAtPosition(x, y, canvas);
         if (note) {
@@ -659,13 +690,30 @@ export default function EditorPage() {
         }
       }
     },
-    [midiZoom, midiScroll, editorMode, getNoteAtPosition]
+    [midiZoom, midiScroll, editorMode, getNoteAtPosition, getSyncPointAtPosition]
   );
 
   const handlePianoRollMouseMove = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const canvas = pianoRollRef.current;
       if (!canvas) return;
+
+      // Handle dragging a sync point
+      if (draggingSyncPointId) {
+        const deltaX = e.clientX - dragSyncStartX;
+        const deltaTime = deltaX / midiZoom;
+        const newMidiTime = Math.max(0, dragSyncStartTime + deltaTime);
+
+        // Update the sync point's midiTime in real-time
+        setSyncPoints((prev) =>
+          prev.map((sp) =>
+            sp.id === draggingSyncPointId
+              ? { ...sp, midiTime: newMidiTime }
+              : sp
+          )
+        );
+        return;
+      }
 
       if (isDragging) {
         const deltaX = e.clientX - dragStartX;
@@ -679,20 +727,35 @@ export default function EditorPage() {
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
+      // Check if hovering over a sync point (change cursor)
+      const syncPoint = getSyncPointAtPosition(x);
+      if (syncPoint && editorMode === 'sync') {
+        canvas.style.cursor = 'ew-resize';
+      } else {
+        canvas.style.cursor = isDragging ? 'grabbing' : hoveredNote ? 'pointer' : 'crosshair';
+      }
+
       const note = getNoteAtPosition(x, y, canvas);
       setHoveredNote(note);
     },
-    [isDragging, dragStartX, dragStartScroll, midiZoom, midiDuration, getNoteAtPosition]
+    [isDragging, dragStartX, dragStartScroll, midiZoom, midiDuration, getNoteAtPosition, getSyncPointAtPosition, draggingSyncPointId, dragSyncStartX, dragSyncStartTime, editorMode, hoveredNote]
   );
 
   const handlePianoRollMouseUp = useCallback(() => {
+    if (draggingSyncPointId) {
+      console.log('Sync point dragged on MIDI:', draggingSyncPointId);
+      setDraggingSyncPointId(null);
+    }
     setIsDragging(false);
-  }, []);
+  }, [draggingSyncPointId]);
 
   const handlePianoRollMouseLeave = useCallback(() => {
+    if (draggingSyncPointId) {
+      setDraggingSyncPointId(null);
+    }
     setIsDragging(false);
     setHoveredNote(null);
-  }, []);
+  }, [draggingSyncPointId]);
 
   // Wheel zoom on piano roll - needs non-passive listener for preventDefault
   useEffect(() => {
@@ -976,7 +1039,7 @@ export default function EditorPage() {
           onMouseMove={handlePianoRollMouseMove}
           onMouseUp={handlePianoRollMouseUp}
           onMouseLeave={handlePianoRollMouseLeave}
-          className={`w-full mb-3 ${isDragging ? 'cursor-grabbing' : hoveredNote ? 'cursor-pointer' : 'cursor-crosshair'}`}
+          className={`w-full mb-3 ${draggingSyncPointId ? 'cursor-ew-resize' : isDragging ? 'cursor-grabbing' : hoveredNote ? 'cursor-pointer' : 'cursor-crosshair'}`}
           style={{ height: 200 }}
         />
 

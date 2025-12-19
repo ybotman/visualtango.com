@@ -37,6 +37,7 @@ export default function CinemaPlayPage() {
   const [secondsVisible, setSecondsVisible] = useState(8); // How many seconds of music visible
   const [showControls, setShowControls] = useState(true);
   const [showTrackPanel, setShowTrackPanel] = useState(false);
+  const [viewMode, setViewMode] = useState<'bands' | 'full'>('bands'); // bands = separate columns, full = merged
 
   // Track visibility helpers
   const toggleTrackMute = useCallback((trackIndex: number) => {
@@ -190,91 +191,163 @@ export default function CinemaPlayPage() {
     const timeWindowStart = midiTime - (secondsVisible / 2);
     const timeWindowEnd = midiTime + (secondsVisible / 2);
 
-    // Calculate track layout
-    const trackCount = tracks.length;
-    const trackWidth = canvas.width / trackCount;
-    const trackPadding = 10;
+    // Get visible tracks for layout
+    const visibleTrackIndices = tracks
+      .map((_, i) => i)
+      .filter((i) => isTrackVisible(i));
+    const visibleTrackCount = visibleTrackIndices.length || 1;
 
-    // Draw track separators and labels
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
-    tracks.forEach((track, i) => {
-      const trackX = i * trackWidth;
+    // Calculate layout based on view mode
+    const padding = 20;
 
-      // Separator line
-      if (i > 0) {
+    if (viewMode === 'bands') {
+      // BANDS MODE: Each track gets its own column
+      const trackWidth = canvas.width / visibleTrackCount;
+
+      // Draw track separators and labels
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      visibleTrackIndices.forEach((trackIdx, i) => {
+        const track = tracks[trackIdx];
+        const trackX = i * trackWidth;
+
+        // Separator line
+        if (i > 0) {
+          ctx.beginPath();
+          ctx.moveTo(trackX, 0);
+          ctx.lineTo(trackX, canvas.height);
+          ctx.stroke();
+        }
+
+        // Track label at bottom
+        ctx.fillStyle = track.color + '88';
+        ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(track.name, trackX + trackWidth / 2, canvas.height - 10);
+      });
+
+      // Get pitch range for each track
+      const trackPitchRanges = tracks.map((_, trackIndex) => {
+        const trackNotes = notes.filter((n) => n.track === trackIndex);
+        if (trackNotes.length === 0) return { min: 60, max: 72 };
+        const pitches = trackNotes.map((n) => n.midi);
+        return {
+          min: Math.min(...pitches) - 2,
+          max: Math.max(...pitches) + 2,
+        };
+      });
+
+      // Draw notes in bands
+      notes.forEach((note) => {
+        if (!isTrackVisible(note.track)) return;
+
+        const noteStart = note.time;
+        const noteEnd = note.time + note.duration;
+        if (noteEnd < timeWindowStart || noteStart > timeWindowEnd) return;
+
+        const track = tracks[note.track];
+        if (!track) return;
+
+        // Find which visible column this track is in
+        const visibleIndex = visibleTrackIndices.indexOf(note.track);
+        if (visibleIndex === -1) return;
+
+        const pitchRange = trackPitchRanges[note.track];
+        const trackX = visibleIndex * trackWidth + padding / 2;
+        const noteAreaWidth = trackWidth - padding;
+
+        const pitchNormalized = (note.midi - pitchRange.min) / (pitchRange.max - pitchRange.min);
+        const noteX = trackX + pitchNormalized * noteAreaWidth;
+        const noteY = playheadY - (noteStart - midiTime) * pixelsPerSecond;
+        const noteHeight = Math.max(note.duration * pixelsPerSecond, 4);
+        const isActive = midiTime >= noteStart && midiTime < noteEnd;
+        const noteWidth = Math.max(8, noteAreaWidth / 20);
+
+        if (isActive) {
+          ctx.shadowColor = track.color;
+          ctx.shadowBlur = 20;
+          ctx.fillStyle = '#ffffff';
+        } else {
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = track.color;
+        }
+
+        ctx.globalAlpha = isActive ? 1 : 0.7;
         ctx.beginPath();
-        ctx.moveTo(trackX, 0);
-        ctx.lineTo(trackX, canvas.height);
-        ctx.stroke();
-      }
+        ctx.roundRect(noteX - noteWidth / 2, noteY - noteHeight, noteWidth, noteHeight, 3);
+        ctx.fill();
+      });
 
-      // Track label at bottom
-      ctx.fillStyle = track.color + '88';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(track.name, trackX + trackWidth / 2, canvas.height - 10);
-    });
-
-    // Get pitch range for each track
-    const trackPitchRanges = tracks.map((_, trackIndex) => {
-      const trackNotes = notes.filter((n) => n.track === trackIndex);
-      if (trackNotes.length === 0) return { min: 60, max: 72 };
-      const pitches = trackNotes.map((n) => n.midi);
-      return {
-        min: Math.min(...pitches) - 2,
-        max: Math.max(...pitches) + 2,
-      };
-    });
-
-    // Draw notes
-    notes.forEach((note) => {
-      // Check if track is visible (Solo/Mute)
-      if (!isTrackVisible(note.track)) return;
-
-      // Check if note is in visible time window
-      const noteStart = note.time;
-      const noteEnd = note.time + note.duration;
-
-      if (noteEnd < timeWindowStart || noteStart > timeWindowEnd) return;
-
-      const track = tracks[note.track];
-      if (!track) return;
-
-      const pitchRange = trackPitchRanges[note.track];
-      const trackX = note.track * trackWidth + trackPadding;
-      const noteAreaWidth = trackWidth - trackPadding * 2;
-
-      // X position based on pitch (low = left, high = right)
-      const pitchNormalized = (note.midi - pitchRange.min) / (pitchRange.max - pitchRange.min);
-      const noteX = trackX + pitchNormalized * noteAreaWidth;
-
-      // Y position: playhead is at center, notes scroll down
-      // Notes above playhead are in the future (top), below are past (bottom)
-      const noteY = playheadY - (noteStart - midiTime) * pixelsPerSecond;
-      const noteHeight = Math.max(note.duration * pixelsPerSecond, 4);
-
-      // Is this note currently playing?
-      const isActive = midiTime >= noteStart && midiTime < noteEnd;
-
-      // Draw note
-      const noteWidth = Math.max(8, noteAreaWidth / 20);
-
-      if (isActive) {
-        // Active note - glow effect
-        ctx.shadowColor = track.color;
-        ctx.shadowBlur = 20;
-        ctx.fillStyle = '#ffffff';
-      } else {
+    } else {
+      // FULL MODE: All tracks merged on one horizontal scale
+      const visibleNotes = notes.filter((n) => isTrackVisible(n.track));
+      if (visibleNotes.length === 0) {
+        ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
-        ctx.fillStyle = track.color;
+        return;
       }
 
-      ctx.globalAlpha = isActive ? 1 : 0.7;
-      ctx.beginPath();
-      ctx.roundRect(noteX - noteWidth / 2, noteY - noteHeight, noteWidth, noteHeight, 3);
-      ctx.fill();
-    });
+      // Get global pitch range across all visible notes
+      const allPitches = visibleNotes.map((n) => n.midi);
+      const globalPitchRange = {
+        min: Math.min(...allPitches) - 2,
+        max: Math.max(...allPitches) + 2,
+      };
+
+      // Draw pitch labels on sides
+      ctx.fillStyle = '#444';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Low (${globalPitchRange.min})`, 5, canvas.height - 25);
+      ctx.textAlign = 'right';
+      ctx.fillText(`High (${globalPitchRange.max})`, canvas.width - 5, canvas.height - 25);
+
+      // Draw track legend at bottom
+      let legendX = padding;
+      tracks.forEach((track, i) => {
+        if (!isTrackVisible(i)) return;
+        ctx.fillStyle = track.color;
+        ctx.fillRect(legendX, canvas.height - 15, 10, 10);
+        ctx.fillStyle = '#888';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(track.name, legendX + 14, canvas.height - 6);
+        legendX += ctx.measureText(track.name).width + 30;
+      });
+
+      // Draw notes across full width
+      const noteAreaWidth = canvas.width - padding * 2;
+
+      visibleNotes.forEach((note) => {
+        const noteStart = note.time;
+        const noteEnd = note.time + note.duration;
+        if (noteEnd < timeWindowStart || noteStart > timeWindowEnd) return;
+
+        const track = tracks[note.track];
+        if (!track) return;
+
+        const pitchNormalized = (note.midi - globalPitchRange.min) / (globalPitchRange.max - globalPitchRange.min);
+        const noteX = padding + pitchNormalized * noteAreaWidth;
+        const noteY = playheadY - (noteStart - midiTime) * pixelsPerSecond;
+        const noteHeight = Math.max(note.duration * pixelsPerSecond, 4);
+        const isActive = midiTime >= noteStart && midiTime < noteEnd;
+        const noteWidth = Math.max(6, 12);
+
+        if (isActive) {
+          ctx.shadowColor = track.color;
+          ctx.shadowBlur = 20;
+          ctx.fillStyle = '#ffffff';
+        } else {
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = track.color;
+        }
+
+        ctx.globalAlpha = isActive ? 1 : 0.8;
+        ctx.beginPath();
+        ctx.roundRect(noteX - noteWidth / 2, noteY - noteHeight, noteWidth, noteHeight, 3);
+        ctx.fill();
+      });
+    }
 
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
@@ -293,7 +366,7 @@ export default function CinemaPlayPage() {
     ctx.textAlign = 'left';
     ctx.fillText('NOW', 10, playheadY - 10);
 
-  }, [notes, tracks, audioTime, syncPoints, secondsVisible, isTrackVisible]);
+  }, [notes, tracks, audioTime, syncPoints, secondsVisible, isTrackVisible, viewMode]);
 
   // Playback controls
   const togglePlay = useCallback(() => {
@@ -409,7 +482,30 @@ export default function CinemaPlayPage() {
                   {config?.title || songId} - Cinema Mode
                 </h1>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                {/* View Mode Toggle */}
+                <div className="flex bg-white/10 rounded overflow-hidden">
+                  <button
+                    onClick={() => setViewMode('bands')}
+                    className={`px-3 py-1 text-sm ${
+                      viewMode === 'bands'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    Bands
+                  </button>
+                  <button
+                    onClick={() => setViewMode('full')}
+                    className={`px-3 py-1 text-sm ${
+                      viewMode === 'full'
+                        ? 'bg-blue-600 text-white'
+                        : 'text-white/70 hover:bg-white/20'
+                    }`}
+                  >
+                    Full
+                  </button>
+                </div>
                 <button
                   onClick={() => setShowTrackPanel((prev) => !prev)}
                   className={`px-3 py-1 rounded text-white text-sm ${

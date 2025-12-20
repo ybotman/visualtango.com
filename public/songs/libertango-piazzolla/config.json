@@ -1,0 +1,100 @@
+{
+  "id": "libertango-piazzolla",
+  "title": "Libertango-Piazzolla",
+  "midiFile": "libertango-piazzolla.mid",
+  "audioFile": "libertango-piazzolla.mp3",
+  "syncPoints": [
+    {
+      "id": "sp-1766260617923-m1e20j2gn",
+      "midiTime": 34.28568,
+      "audioTime": 2.225279869840802,
+      "label": "Sync 1"
+    },
+    {
+      "id": "sp-1766260643152-jii9m8p0q",
+      "midiTime": 61.714224,
+      "audioTime": 30.128789248968157,
+      "label": "Sync 2"
+    },
+    {
+      "id": "sp-1766260695399-b3k9pzj30",
+      "midiTime": 89.142768,
+      "audioTime": 57.72126442383292,
+      "label": "Sync 3"
+    },
+    {
+      "id": "sp-1766260768839-mwvatcrc2",
+      "midiTime": 116.571312,
+      "audioTime": 85.4319285590972,
+      "label": "Sync 4"
+    }
+  ],
+  "tracks": [
+    {
+      "name": "Track 1",
+      "noteCount": 216,
+      "color": "#3B82F6",
+      "instrument": "flute",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Track 2",
+      "noteCount": 724,
+      "color": "#10B981",
+      "instrument": "tango accordion",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Bandoneon",
+      "noteCount": 560,
+      "color": "#F59E0B",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Grand Piano",
+      "noteCount": 714,
+      "color": "#EF4444",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Track 5",
+      "noteCount": 4,
+      "color": "#8B5CF6",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Grand Piano",
+      "noteCount": 767,
+      "color": "#EC4899",
+      "instrument": "acoustic grand piano",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    },
+    {
+      "name": "Track 7",
+      "noteCount": 394,
+      "color": "#06B6D4",
+      "instrument": "contrabass",
+      "visible": true,
+      "muted": false,
+      "solo": false
+    }
+  ],
+  "adornments": [],
+  "createdAt": "2025-12-20T19:56:41.014Z",
+  "updatedAt": "2025-12-20T20:01:46.218Z"
+}

@@ -1162,8 +1162,9 @@ export default function CinemaPlayPage() {
                       →
                     </button>
                     <button
-                      onClick={() => setAvOffset(0)}
+                      onClick={() => setAvOffset(250)}
                       className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded text-white/50 text-xs"
+                      title="Reset to default (+250ms)"
                     >
                       Reset
                     </button>

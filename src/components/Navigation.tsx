@@ -29,6 +29,9 @@ export default function Navigation() {
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-2">
               <span className="text-xl font-bold text-white">VisualTango</span>
+              <span className="text-xs text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">
+                v1.0.1
+              </span>
             </Link>
             <span className="text-zinc-500 text-sm hidden sm:inline">
               See the music

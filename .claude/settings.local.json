@@ -78,7 +78,9 @@
       "Bash(pkill -f:*)",
       "Bash(mkdir:*)",
       "Bash(npx:*)",
-      "Read(//Users/tobybalsley/MyDocs/AppDev/visualMusic/visualtango.com/**)"
+      "Read(//Users/tobybalsley/MyDocs/AppDev/visualMusic/visualtango.com/**)",
+      "WebFetch(domain:tangotiempo.com)",
+      "WebFetch(domain:hdtsllc.com)"
     ],
     "deny": [],
     "ask": []

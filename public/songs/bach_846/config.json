@@ -129,30 +129,32 @@
   ],
   "adornments": [
     {
-      "id": "ad-1766101269666-tkbdmmfdw",
-      "type": "punch",
+      "id": "ad-1766252869540-1ok3ixf91",
+      "type": "spark",
       "scope": "section",
-      "startTime": 6.395694852083333,
-      "endTime": 7.966442602083333,
-      "label": "Punch"
+      "startTime": 0.20439193958333335,
+      "endTime": 1.6192839395833332,
+      "label": "Spark"
     },
     {
-      "id": "ad-1766101284621-srhv7sh23",
+      "id": "ad-1766252891290-seprxpo2k",
       "type": "glow",
-      "scope": "section",
-      "startTime": 6.395694852083333,
-      "endTime": 7.966442602083333,
+      "scope": "track",
+      "startTime": 0,
+      "endTime": 225.5584237083333,
+      "trackIndex": 2,
       "label": "Glow"
     },
     {
-      "id": "ad-1766161356329-86ambcmun",
-      "type": "phrase",
-      "scope": "section",
-      "startTime": 73.37819426458333,
-      "endTime": 74.97727052291665,
-      "label": "Phrase"
+      "id": "ad-1766252898774-osijawzb1",
+      "type": "spark",
+      "scope": "track",
+      "startTime": 0,
+      "endTime": 225.5584237083333,
+      "trackIndex": 5,
+      "label": "Spark"
     }
   ],
   "createdAt": "2025-12-18T22:54:59.723Z",
-  "updatedAt": "2025-12-19T16:22:57.331Z"
+  "updatedAt": "2025-12-20T17:48:22.783Z"
 }

@@ -14,115 +14,211 @@
       "id": "sp-1766165407214-lwtdqovgw",
       "midiTime": 2.0098393574297186,
       "audioTime": 4.111840801189962,
-      "label": "Sync 3"
+      "label": "Sync 2"
     },
     {
       "id": "sp-1766165681141-kgymxmkbh",
       "midiTime": 3,
       "audioTime": 5.130517899276067,
-      "label": "Sync 4"
+      "label": "Sync 3"
     },
     {
       "id": "sp-1766165690443-dfddpjnu1",
       "midiTime": 4,
-      "audioTime": 6.115636749297273,
-      "label": "Sync 5"
+      "audioTime": 6.165112941329015,
+      "label": "Sync 4"
     },
     {
       "id": "sp-1766165726880-20hdp84uj",
       "midiTime": 5,
       "audioTime": 7.1750719013330215,
-      "label": "Sync 6"
+      "label": "Sync 5"
     },
     {
       "id": "sp-1766165759757-aetlpjnm8",
       "midiTime": 6,
       "audioTime": 8.171980125542396,
-      "label": "Sync 7"
+      "label": "Sync 6"
     },
     {
       "id": "sp-1766165782513-j2p4bh3qd",
       "midiTime": 7,
       "audioTime": 9.198895620714593,
-      "label": "Sync 8"
+      "label": "Sync 7"
     },
     {
       "id": "sp-1766165858310-8recm8h95",
       "midiTime": 10,
       "audioTime": 12.238482283275893,
-      "label": "Sync 9"
+      "label": "Sync 8"
     },
     {
       "id": "sp-1766165996405-ftfyq8zkd",
       "midiTime": 14.21875,
       "audioTime": 16.519466373778403,
-      "label": "Sync 10"
+      "label": "Sync 9"
     },
     {
       "id": "sp-1766166053949-omenv1xpg",
       "midiTime": 19.979166666666657,
       "audioTime": 22.130146059858294,
-      "label": "Sync 11"
+      "label": "Sync 10"
     },
     {
       "id": "sp-1766166097271-fpn3convq",
       "midiTime": 26,
       "audioTime": 28.15333643885998,
-      "label": "Sync 12"
+      "label": "Sync 11"
     },
     {
       "id": "sp-1766166135163-mozmajsfn",
       "midiTime": 30.25,
       "audioTime": 32.53608958134339,
-      "label": "Sync 13"
+      "label": "Sync 12"
     },
     {
       "id": "sp-1766166391593-m2kp1tg1e",
       "midiTime": 49.97979090170235,
       "audioTime": 52.186526477134144,
-      "label": "Sync 14"
+      "label": "Sync 13"
     },
     {
       "id": "sp-1766166432063-s8bvfdr1w",
       "midiTime": 62.5,
       "audioTime": 64.32083097094463,
-      "label": "Sync 15"
+      "label": "Sync 14"
     },
     {
       "id": "sp-1766166456843-r1bf1hiz8",
       "midiTime": 74,
       "audioTime": 75.8781330113355,
-      "label": "Sync 16"
+      "label": "Sync 15"
     },
     {
       "id": "sp-1766166492527-rm73emdie",
       "midiTime": 84,
       "audioTime": 86.01299787752443,
-      "label": "Sync 17"
+      "label": "Sync 16"
     },
     {
       "id": "sp-1766166554031-03itr44dn",
       "midiTime": 94.5,
       "audioTime": 96.2304273038126,
+      "label": "Sync 17"
+    },
+    {
+      "id": "sp-1766169874291-zlo77eeiy",
+      "midiTime": 102,
+      "audioTime": 104.06947584738447,
       "label": "Sync 18"
     },
     {
       "id": "sp-1766166637536-aobc9xt13",
-      "midiTime": 108,
-      "audioTime": 110.1388658868404,
+      "midiTime": 107.77083333333333,
+      "audioTime": 109.72720332011762,
       "label": "Sync 19"
+    },
+    {
+      "id": "sp-1766170316603-hv0q533v8",
+      "midiTime": 112.00927604503022,
+      "audioTime": 113.71046932261967,
+      "label": "Sync 20"
+    },
+    {
+      "id": "sp-1766171563657-7ak5y1l8p",
+      "midiTime": 114.22527709744554,
+      "audioTime": 116.46305902516367,
+      "label": "Sync 21"
+    },
+    {
+      "id": "sp-1766171535911-ddfia04ge",
+      "midiTime": 116,
+      "audioTime": 117.91332541537184,
+      "label": "Sync 22"
+    },
+    {
+      "id": "sp-1766171600302-6r56vsowx",
+      "midiTime": 117,
+      "audioTime": 117.33821977787551,
+      "label": "Sync 23"
     },
     {
       "id": "sp-1766166722170-7lcq9j239",
       "midiTime": 124,
       "audioTime": 126.23018642,
-      "label": "Sync 20"
+      "label": "Sync 24"
+    },
+    {
+      "id": "sp-1766170723412-b5iapwptj",
+      "midiTime": 143.75,
+      "audioTime": 146.21257114285714,
+      "label": "Sync 25"
+    },
+    {
+      "id": "sp-1766170746300-ztyh8nl7f",
+      "midiTime": 144.25,
+      "audioTime": 146.6814416249725,
+      "label": "Sync 26"
+    },
+    {
+      "id": "sp-1766170789980-nbac0x541",
+      "midiTime": 147.5,
+      "audioTime": 149.84475447764422,
+      "label": "Sync 27"
+    },
+    {
+      "id": "sp-1766170898261-q4pv1ves8",
+      "midiTime": 152,
+      "audioTime": 154.2646402223851,
+      "label": "Sync 28"
+    },
+    {
+      "id": "sp-1766170925451-32l3urs8d",
+      "midiTime": 156,
+      "audioTime": 158.440713316426,
+      "label": "Sync 29"
+    },
+    {
+      "id": "sp-1766170934618-z6g9oc45v",
+      "midiTime": 156.5,
+      "audioTime": 159.0658739592465,
+      "label": "Sync 30"
+    },
+    {
+      "id": "sp-1766170943454-7z9dnxz60",
+      "midiTime": 157.033333,
+      "audioTime": 159.65352496349777,
+      "label": "Sync 31"
+    },
+    {
+      "id": "sp-1766170949361-aewdwoy9t",
+      "midiTime": 157.59843176276772,
+      "audioTime": 160.36620809631313,
+      "label": "Sync 32"
+    },
+    {
+      "id": "sp-1766170964199-vz3ipf9bc",
+      "midiTime": 158.220147,
+      "audioTime": 160.99136873913363,
+      "label": "Sync 33"
+    },
+    {
+      "id": "sp-1766170971771-8qssgwzrr",
+      "midiTime": 158.886814,
+      "audioTime": 161.5790197433849,
+      "label": "Sync 34"
+    },
+    {
+      "id": "sp-1766171016983-nweodg4n9",
+      "midiTime": 161.180343,
+      "audioTime": 163.45450167184637,
+      "label": "Sync 35"
     },
     {
       "id": "sp-1766165387384-ce6wwijha",
       "midiTime": 163.91451946457988,
       "audioTime": 165.23035011199062,
-      "label": "Sync 2"
+      "label": "Sync 36"
     }
   ],
   "tracks": [
@@ -208,7 +304,38 @@
       "solo": false
     }
   ],
-  "adornments": [],
+  "adornments": [
+    {
+      "id": "ad-1766254507473-5rem95zj5",
+      "type": "punch",
+      "scope": "section",
+      "startTime": 2,
+      "endTime": 5.498958333333333,
+      "label": "Punch"
+    },
+    {
+      "id": "ad-1766254999037-i77lxkn4v",
+      "type": "punch",
+      "scope": "section",
+      "startTime": 5,
+      "endTime": 5.248958333333333,
+      "trackIndices": [
+        0
+      ],
+      "label": "Punch"
+    },
+    {
+      "id": "ad-1766255009990-dtswt8hcy",
+      "type": "punch",
+      "scope": "section",
+      "startTime": 7,
+      "endTime": 7.248958333333333,
+      "trackIndices": [
+        0
+      ],
+      "label": "Punch"
+    }
+  ],
   "createdAt": "2025-12-19T16:54:50.217Z",
-  "updatedAt": "2025-12-19T18:11:07.375Z"
+  "updatedAt": "2025-12-20T18:23:32.410Z"
 }

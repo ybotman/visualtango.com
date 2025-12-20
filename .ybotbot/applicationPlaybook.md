@@ -6,6 +6,7 @@
 **Domain**: visualtango.com
 **GitHub**: https://github.com/ybotman/visualtango.com.git
 **Created**: December 2025
+**Last Updated**: 2025-12-19
 
 ### Inspiration
 Stephen Malinowski's Music Animation Machine (https://twitter.com/musanim) - visual representations of classical music that make the structure visible.
@@ -57,7 +58,44 @@ Create animated visual music scores synced to 1930s Argentine tango recordings. 
 
 ---
 
-## File Storage Structure
+## Project File Structure
+
+```
+visualtango.com/
+├── .claude/settings.local.json    # Claude permissions
+├── .ybotbot/applicationPlaybook.md # This file - detailed docs
+├── CLAUDE.md                       # Quick reference (points here)
+├── public/
+│   └── songs/
+│       └── {songId}/
+│           ├── {songId}.mid       # MIDI file
+│           ├── {songId}.mp3       # Audio file
+│           └── config.json        # Sync points + adornments
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx             # Root layout + nav
+│   │   ├── page.tsx               # Catalog (song list)
+│   │   ├── editor/[songId]/page.tsx
+│   │   ├── play/[songId]/page.tsx
+│   │   ├── play/[songId]/cinema/page.tsx  # Cinema mode
+│   │   ├── help/page.tsx          # Documentation
+│   │   ├── about/page.tsx
+│   │   └── payment/page.tsx
+│   │   └── api/
+│   │       └── songs/
+│   │           ├── route.ts       # GET /api/songs
+│   │           └── [songId]/config/route.ts  # GET/POST config
+│   ├── components/
+│   │   └── Navigation.tsx
+│   └── lib/
+│       ├── types.ts               # Shared interfaces
+│       ├── sync.ts                # Time interpolation
+│       ├── midi.ts                # MIDI loading
+│       └── storage.ts             # Config load/save
+└── package.json
+```
+
+## Song File Storage
 
 Songs are stored in `public/songs/{songId}/`:
 
@@ -67,9 +105,9 @@ public/songs/
 │   ├── bach_846.mid      # MIDI from sheet music
 │   ├── bach_846.mp3      # Audio recording
 │   └── config.json       # Sync points + adornments + track settings
-├── volver/
-│   ├── volver.mid
-│   ├── volver.mp3
+├── la-yumba-osvaldo-pugliese/
+│   ├── la-yumba-osvaldo-pugliese.mid
+│   ├── la-yumba-osvaldo-pugliese.mp3
 │   └── config.json
 └── ...
 ```
@@ -196,6 +234,7 @@ public/songs/
 ├────────────────────────────────────────────────────┤
 │  Settings: Zoom [●────] 150 px/sec                │
 │            Note Height [──●──] 6px                │
+│  [Cinema Mode]                                     │
 └────────────────────────────────────────────────────┘
 ```
 
@@ -203,10 +242,40 @@ public/songs/
 - **Audio mode**: Howler.js plays MP3, Canvas shows MIDI visualization synced via `audioToMidiTime()`
 - **MIDI mode**: Tone.js synthesizes MIDI, Solo/Mute per track available
 
-### 4. About Page (/about)
+### 4. Cinema Mode (/play/[songId]/cinema)
+
+**Purpose**: Full-screen vertical visualization for presentations/recordings
+
+**Features**:
+- Notes scroll top-to-bottom (like movie credits)
+- **View modes**: Bands (instruments in separate columns) or Full (merged view)
+- **A/V Sync Offset**: Adjustable offset (±ms) to compensate for audio/video latency
+- **Video Recording**: Record canvas to WebM for export
+- **Watermark**: Optional "VisualTango.com" watermark overlay
+- **Fullscreen**: Native fullscreen support
+- Track solo/mute panel
+
+**Keyboard Shortcuts**:
+- `Space` - Play/Pause
+- `←/→` - Seek 5 seconds
+- `H` - Hide/show controls
+- `Esc` - Exit fullscreen/cinema
+
+### 5. Help Page (/help)
+
+**Purpose**: User documentation for adding songs and using the editor
+
+**Content**:
+- File structure requirements (folder naming, file naming)
+- Step-by-step song addition guide with terminal commands
+- Editor usage: creating sync points, navigation controls
+- Play mode descriptions
+- Troubleshooting common issues
+
+### 6. About Page (/about)
 Placeholder for project info, credits, links.
 
-### 5. Payment Page (/payment)
+### 7. Payment Page (/payment)
 Placeholder for subscription tiers (future).
 
 ---
@@ -313,16 +382,22 @@ When Claude starts in this folder:
 - [x] Project scaffolding (Next.js 16 + TypeScript + Tailwind)
 - [x] Dependencies installed (@tonejs/midi, howler, tone, wavesurfer.js)
 - [x] Configuration files (.claude/, .ybotbot/, CLAUDE.md)
-- [ ] src/lib/types.ts - Core interfaces
-- [ ] src/lib/sync.ts - Interpolation functions
-- [ ] src/lib/midi.ts - MIDI loading
-- [ ] src/lib/storage.ts - Config load/save
-- [ ] Navigation component
-- [ ] Catalog page (/)
-- [ ] API routes (/api/songs)
-- [ ] Editor page (/editor/[songId])
-- [ ] Play page (/play/[songId])
-- [ ] About page (placeholder)
-- [ ] Payment page (placeholder)
-- [ ] Sample song files in public/songs/
-- [ ] Git remote + first push
+- [x] src/lib/types.ts - Core interfaces
+- [x] src/lib/sync.ts - Interpolation functions
+- [x] src/lib/midi.ts - MIDI loading
+- [x] src/lib/storage.ts - Config load/save
+- [x] Navigation component
+- [x] Catalog page (/)
+- [x] API routes (/api/songs, /api/songs/[songId]/config)
+- [x] Editor page (/editor/[songId]) - Sync points, draggable markers
+- [x] Play page (/play/[songId])
+- [x] Cinema mode (/play/[songId]/cinema) - Video recording, watermarks, A/V offset
+- [x] Help page (/help)
+- [x] About page (placeholder)
+- [x] Payment page (placeholder)
+- [x] Sample song files in public/songs/
+- [x] Git remote + first push
+- [x] Read-only production check with contact info
+- [ ] Visual adornment rendering in Canvas
+- [ ] Firebase Auth for user roles
+- [ ] Azure API for cloud storage

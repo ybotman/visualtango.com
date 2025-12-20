@@ -4,7 +4,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Howl } from 'howler';
 import { loadMidi } from '@/lib/midi';
-import { Note, Track, SyncPoint, SongConfig } from '@/lib/types';
+import { Note, Track, SyncPoint, SongConfig, Adornment } from '@/lib/types';
 import { audioToMidiTime } from '@/lib/sync';
 import { fetchSongConfig } from '@/lib/storage';
 
@@ -33,6 +33,7 @@ export default function CinemaPlayPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [syncPoints, setSyncPoints] = useState<SyncPoint[]>([]);
+  const [adornments, setAdornments] = useState<Adornment[]>([]);
   const [config, setConfig] = useState<SongConfig | null>(null);
 
   // Visualization settings
@@ -44,7 +45,7 @@ export default function CinemaPlayPage() {
   const [isRecording, setIsRecording] = useState(false);
 
   // A/V Sync offset - positive = visual ahead, negative = visual behind
-  const [avOffset, setAvOffset] = useState(-50); // Default -50ms (visual slightly ahead to compensate for rendering delay)
+  const [avOffset, setAvOffset] = useState(300); // Default +300ms
 
   // Track visibility helpers
   const toggleTrackMute = useCallback((trackIndex: number) => {
@@ -77,6 +78,7 @@ export default function CinemaPlayPage() {
         const loadedConfig = await fetchSongConfig(songId);
         setConfig(loadedConfig);
         setSyncPoints(loadedConfig.syncPoints || []);
+        setAdornments(loadedConfig.adornments || []);
 
         const midiUrl = `/songs/${songId}/${loadedConfig.midiFile || `${songId}.mid`}`;
         const midiData = await loadMidi(midiUrl);
@@ -192,6 +194,23 @@ export default function CinemaPlayPage() {
     const adjustedAudioTime = audioTime + (avOffset / 1000);
     const midiTime = audioToMidiTime(adjustedAudioTime, syncPoints);
 
+    // Helper to get adornments for a note
+    const getAdornmentsForNote = (note: Note): Adornment[] => {
+      return adornments.filter((ad) => {
+        const noteEnd = note.time + note.duration;
+        const inTimeRange = note.time < ad.endTime && noteEnd > ad.startTime;
+        if (!inTimeRange) return false;
+        if (ad.scope === 'track' && ad.trackIndex !== undefined) {
+          return ad.trackIndex === note.track;
+        }
+        // For section scope with trackIndices, only apply to specified tracks
+        if (ad.scope === 'section' && ad.trackIndices && ad.trackIndices.length > 0) {
+          return ad.trackIndices.includes(note.track);
+        }
+        return true;
+      });
+    };
+
     // Playhead is at center of screen
     const playheadY = canvas.height / 2;
     const pixelsPerSecond = canvas.height / secondsVisible;
@@ -213,26 +232,33 @@ export default function CinemaPlayPage() {
       // BANDS MODE: Each track gets its own column
       const trackWidth = canvas.width / visibleTrackCount;
 
-      // Draw track separators and labels
-      ctx.strokeStyle = '#333';
-      ctx.lineWidth = 1;
+      // Draw alternating background bands and track titles
       visibleTrackIndices.forEach((trackIdx, i) => {
         const track = tracks[trackIdx];
         const trackX = i * trackWidth;
 
-        // Separator line
+        // Alternating background - subtle dark/darker grey
+        ctx.fillStyle = i % 2 === 0 ? '#1a1a1a' : '#0f0f0f';
+        ctx.fillRect(trackX, 0, trackWidth, canvas.height);
+
+        // Track title at TOP
+        ctx.fillStyle = track.color;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(track.name, trackX + trackWidth / 2, 18);
+      });
+
+      // Draw separator lines between bands
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      visibleTrackIndices.forEach((_, i) => {
         if (i > 0) {
+          const trackX = i * trackWidth;
           ctx.beginPath();
           ctx.moveTo(trackX, 0);
           ctx.lineTo(trackX, canvas.height);
           ctx.stroke();
         }
-
-        // Track label at bottom
-        ctx.fillStyle = track.color + '88';
-        ctx.font = 'bold 12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(track.name, trackX + trackWidth / 2, canvas.height - 10);
       });
 
       // Get pitch range for each track
@@ -246,7 +272,7 @@ export default function CinemaPlayPage() {
         };
       });
 
-      // Draw notes in bands
+      // Draw notes in bands with adornment effects
       notes.forEach((note) => {
         if (!isTrackVisible(note.track)) return;
 
@@ -272,19 +298,155 @@ export default function CinemaPlayPage() {
         const isActive = midiTime >= noteStart && midiTime < noteEnd;
         const noteWidth = Math.max(8, noteAreaWidth / 20);
 
-        if (isActive) {
+        // Get adornments for this note
+        const noteAdornments = getAdornmentsForNote(note);
+        let hasPunch = false, hasGlow = false, hasSpark = false, hasAccent = false;
+        let hasWavy = false, hasTremolo = false, hasStar = false, hasDiamond = false;
+        let hasFootball = false, hasArrow = false;
+        noteAdornments.forEach((ad) => {
+          if (ad.type === 'punch') hasPunch = true;
+          if (ad.type === 'glow') hasGlow = true;
+          if (ad.type === 'spark') hasSpark = true;
+          if (ad.type === 'accent') hasAccent = true;
+          if (ad.type === 'wavy') hasWavy = true;
+          if (ad.type === 'tremolo') hasTremolo = true;
+          if (ad.type === 'star') hasStar = true;
+          if (ad.type === 'diamond') hasDiamond = true;
+          if (ad.type === 'football') hasFootball = true;
+          if (ad.type === 'arrow') hasArrow = true;
+        });
+
+        // GLOW effect
+        if (hasGlow) {
+          ctx.shadowColor = track.color;
+          ctx.shadowBlur = 25;
+        } else if (isActive) {
           ctx.shadowColor = track.color;
           ctx.shadowBlur = 20;
-          ctx.fillStyle = '#ffffff';
         } else {
           ctx.shadowBlur = 0;
-          ctx.fillStyle = track.color;
         }
 
+        ctx.fillStyle = isActive ? '#ffffff' : track.color;
         ctx.globalAlpha = isActive ? 1 : 0.7;
-        ctx.beginPath();
-        ctx.roundRect(noteX - noteWidth / 2, noteY - noteHeight, noteWidth, noteHeight, 3);
-        ctx.fill();
+
+        // Draw note shape based on adornment
+        if (hasWavy) {
+          ctx.beginPath();
+          const amplitude = noteWidth * 0.3;
+          const freq = 0.2;
+          ctx.moveTo(noteX - noteWidth / 2, noteY);
+          for (let py = 0; py <= noteHeight; py += 2) {
+            const waveX = noteX + Math.sin((py + midiTime * 50) * freq) * amplitude;
+            ctx.lineTo(waveX - noteWidth / 2, noteY - py);
+          }
+          for (let py = noteHeight; py >= 0; py -= 2) {
+            const waveX = noteX + Math.sin((py + midiTime * 50) * freq) * amplitude;
+            ctx.lineTo(waveX + noteWidth / 2, noteY - py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        } else if (hasTremolo) {
+          const layers = 3;
+          for (let i = 0; i < layers; i++) {
+            const offset = Math.sin(midiTime * 30 + i * 2) * 3;
+            ctx.globalAlpha = 0.4 + (i * 0.2);
+            ctx.beginPath();
+            ctx.roundRect(noteX - noteWidth / 2 + offset, noteY - noteHeight - i * 2, noteWidth, noteHeight, 3);
+            ctx.fill();
+          }
+          ctx.globalAlpha = isActive ? 1 : 0.7;
+        } else if (hasStar) {
+          // STAR effect - 5-pointed star
+          ctx.beginPath();
+          const cx = noteX;
+          const cy = noteY - noteHeight / 2;
+          const outerR = noteWidth * 0.8;
+          const innerR = noteWidth * 0.4;
+          const points = 5;
+          for (let i = 0; i < points * 2; i++) {
+            const r = i % 2 === 0 ? outerR : innerR;
+            const angle = (i * Math.PI) / points - Math.PI / 2;
+            const px = cx + r * Math.cos(angle);
+            const py = cy + r * Math.sin(angle);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        } else if (hasDiamond) {
+          // DIAMOND effect - rotated square
+          ctx.beginPath();
+          const cx = noteX;
+          const cy = noteY - noteHeight / 2;
+          const size = noteWidth * 0.7;
+          ctx.moveTo(cx, cy - size);
+          ctx.lineTo(cx + size, cy);
+          ctx.lineTo(cx, cy + size);
+          ctx.lineTo(cx - size, cy);
+          ctx.closePath();
+          ctx.fill();
+        } else if (hasFootball) {
+          // FOOTBALL effect - ellipse
+          ctx.beginPath();
+          ctx.ellipse(noteX, noteY - noteHeight / 2, noteWidth * 0.8, noteHeight / 2, 0, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.roundRect(noteX - noteWidth / 2, noteY - noteHeight, noteWidth, noteHeight, 3);
+          ctx.fill();
+        }
+
+        // PUNCH effect - bold outline
+        if (hasPunch) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(noteX - noteWidth / 2 - 2, noteY - noteHeight - 2, noteWidth + 4, noteHeight + 4, 4);
+          ctx.stroke();
+        }
+
+        // ACCENT effect - triangle marker
+        if (hasAccent) {
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          const triSize = noteWidth * 0.8;
+          ctx.moveTo(noteX, noteY - noteHeight - triSize - 4);
+          ctx.lineTo(noteX - triSize / 2, noteY - noteHeight - 4);
+          ctx.lineTo(noteX + triSize / 2, noteY - noteHeight - 4);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // SPARK effect - radiating lines when active
+        if (hasSpark && isActive) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          const rays = 6;
+          const innerR = noteWidth;
+          const outerR = noteWidth * 2;
+          for (let i = 0; i < rays; i++) {
+            const angle = (i / rays) * Math.PI * 2 + midiTime * 4;
+            ctx.beginPath();
+            ctx.moveTo(noteX + Math.cos(angle) * innerR, noteY - noteHeight / 2 + Math.sin(angle) * innerR);
+            ctx.lineTo(noteX + Math.cos(angle) * outerR, noteY - noteHeight / 2 + Math.sin(angle) * outerR);
+            ctx.stroke();
+          }
+        }
+
+        // ARROW effect - directional arrow
+        if (hasArrow) {
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          const arrowSize = noteWidth * 0.6;
+          ctx.moveTo(noteX, noteY - noteHeight - arrowSize - 4);
+          ctx.lineTo(noteX - arrowSize / 2, noteY - noteHeight - 4);
+          ctx.lineTo(noteX + arrowSize / 2, noteY - noteHeight - 4);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        ctx.shadowBlur = 0;
       });
 
     } else {
@@ -324,7 +486,7 @@ export default function CinemaPlayPage() {
         legendX += ctx.measureText(track.name).width + 30;
       });
 
-      // Draw notes across full width
+      // Draw notes across full width with adornment effects
       const noteAreaWidth = canvas.width - padding * 2;
 
       visibleNotes.forEach((note) => {
@@ -342,24 +504,244 @@ export default function CinemaPlayPage() {
         const isActive = midiTime >= noteStart && midiTime < noteEnd;
         const noteWidth = Math.max(6, 12);
 
-        if (isActive) {
+        // Get adornments for this note
+        const noteAdornments = getAdornmentsForNote(note);
+        let hasPunch = false, hasGlow = false, hasSpark = false, hasAccent = false;
+        let hasWavy = false, hasTremolo = false, hasStar = false, hasDiamond = false;
+        let hasFootball = false, hasArrow = false;
+        noteAdornments.forEach((ad) => {
+          if (ad.type === 'punch') hasPunch = true;
+          if (ad.type === 'glow') hasGlow = true;
+          if (ad.type === 'spark') hasSpark = true;
+          if (ad.type === 'accent') hasAccent = true;
+          if (ad.type === 'wavy') hasWavy = true;
+          if (ad.type === 'tremolo') hasTremolo = true;
+          if (ad.type === 'star') hasStar = true;
+          if (ad.type === 'diamond') hasDiamond = true;
+          if (ad.type === 'football') hasFootball = true;
+          if (ad.type === 'arrow') hasArrow = true;
+        });
+
+        // GLOW effect
+        if (hasGlow) {
+          ctx.shadowColor = track.color;
+          ctx.shadowBlur = 25;
+        } else if (isActive) {
           ctx.shadowColor = track.color;
           ctx.shadowBlur = 20;
-          ctx.fillStyle = '#ffffff';
         } else {
           ctx.shadowBlur = 0;
-          ctx.fillStyle = track.color;
         }
 
+        ctx.fillStyle = isActive ? '#ffffff' : track.color;
         ctx.globalAlpha = isActive ? 1 : 0.8;
-        ctx.beginPath();
-        ctx.roundRect(noteX - noteWidth / 2, noteY - noteHeight, noteWidth, noteHeight, 3);
-        ctx.fill();
+
+        // Draw note shape based on adornment
+        if (hasWavy) {
+          ctx.beginPath();
+          const amplitude = noteWidth * 0.4;
+          const freq = 0.2;
+          ctx.moveTo(noteX - noteWidth / 2, noteY);
+          for (let py = 0; py <= noteHeight; py += 2) {
+            const waveX = noteX + Math.sin((py + midiTime * 50) * freq) * amplitude;
+            ctx.lineTo(waveX - noteWidth / 2, noteY - py);
+          }
+          for (let py = noteHeight; py >= 0; py -= 2) {
+            const waveX = noteX + Math.sin((py + midiTime * 50) * freq) * amplitude;
+            ctx.lineTo(waveX + noteWidth / 2, noteY - py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        } else if (hasTremolo) {
+          const layers = 3;
+          for (let i = 0; i < layers; i++) {
+            const offset = Math.sin(midiTime * 30 + i * 2) * 3;
+            ctx.globalAlpha = 0.4 + (i * 0.2);
+            ctx.beginPath();
+            ctx.roundRect(noteX - noteWidth / 2 + offset, noteY - noteHeight - i * 2, noteWidth, noteHeight, 3);
+            ctx.fill();
+          }
+          ctx.globalAlpha = isActive ? 1 : 0.8;
+        } else if (hasStar) {
+          ctx.beginPath();
+          const cx = noteX;
+          const cy = noteY - noteHeight / 2;
+          const outerR = noteWidth * 0.8;
+          const innerR = noteWidth * 0.4;
+          const points = 5;
+          for (let i = 0; i < points * 2; i++) {
+            const r = i % 2 === 0 ? outerR : innerR;
+            const angle = (i * Math.PI) / points - Math.PI / 2;
+            const px = cx + r * Math.cos(angle);
+            const py = cy + r * Math.sin(angle);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        } else if (hasDiamond) {
+          ctx.beginPath();
+          const cx = noteX;
+          const cy = noteY - noteHeight / 2;
+          const size = noteWidth * 0.7;
+          ctx.moveTo(cx, cy - size);
+          ctx.lineTo(cx + size, cy);
+          ctx.lineTo(cx, cy + size);
+          ctx.lineTo(cx - size, cy);
+          ctx.closePath();
+          ctx.fill();
+        } else if (hasFootball) {
+          ctx.beginPath();
+          ctx.ellipse(noteX, noteY - noteHeight / 2, noteWidth * 0.8, noteHeight / 2, 0, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.beginPath();
+          ctx.roundRect(noteX - noteWidth / 2, noteY - noteHeight, noteWidth, noteHeight, 3);
+          ctx.fill();
+        }
+
+        // PUNCH effect
+        if (hasPunch) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.roundRect(noteX - noteWidth / 2 - 2, noteY - noteHeight - 2, noteWidth + 4, noteHeight + 4, 4);
+          ctx.stroke();
+        }
+
+        // ACCENT effect
+        if (hasAccent) {
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          const triSize = noteWidth * 0.8;
+          ctx.moveTo(noteX, noteY - noteHeight - triSize - 4);
+          ctx.lineTo(noteX - triSize / 2, noteY - noteHeight - 4);
+          ctx.lineTo(noteX + triSize / 2, noteY - noteHeight - 4);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // SPARK effect
+        if (hasSpark && isActive) {
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          const rays = 6;
+          const innerR = noteWidth;
+          const outerR = noteWidth * 2;
+          for (let i = 0; i < rays; i++) {
+            const angle = (i / rays) * Math.PI * 2 + midiTime * 4;
+            ctx.beginPath();
+            ctx.moveTo(noteX + Math.cos(angle) * innerR, noteY - noteHeight / 2 + Math.sin(angle) * innerR);
+            ctx.lineTo(noteX + Math.cos(angle) * outerR, noteY - noteHeight / 2 + Math.sin(angle) * outerR);
+            ctx.stroke();
+          }
+        }
+
+        // ARROW effect
+        if (hasArrow) {
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          const arrowSize = noteWidth * 0.6;
+          ctx.moveTo(noteX, noteY - noteHeight - arrowSize - 4);
+          ctx.lineTo(noteX - arrowSize / 2, noteY - noteHeight - 4);
+          ctx.lineTo(noteX + arrowSize / 2, noteY - noteHeight - 4);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        ctx.shadowBlur = 0;
       });
     }
 
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
+
+    // PHRASE effect - horizontal bracket overlay
+    adornments
+      .filter((ad) => ad.type === 'phrase')
+      .forEach((ad) => {
+        const startY = playheadY - (ad.startTime - midiTime) * pixelsPerSecond;
+        const endY = playheadY - (ad.endTime - midiTime) * pixelsPerSecond;
+        if (endY > canvas.height || startY < 0) return;
+
+        ctx.strokeStyle = '#A855F7';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 3]);
+        ctx.beginPath();
+        ctx.moveTo(20, startY);
+        ctx.lineTo(10, startY);
+        ctx.lineTo(10, endY);
+        ctx.lineTo(20, endY);
+        ctx.stroke();
+
+        if (ad.label) {
+          ctx.fillStyle = '#A855F7';
+          ctx.font = '10px sans-serif';
+          ctx.textAlign = 'left';
+          ctx.save();
+          ctx.translate(5, (startY + endY) / 2);
+          ctx.rotate(-Math.PI / 2);
+          ctx.fillText(ad.label, 0, 0);
+          ctx.restore();
+        }
+        ctx.setLineDash([]);
+      });
+
+    // LEGATO effect - curved slur on right side
+    adornments
+      .filter((ad) => ad.type === 'legato')
+      .forEach((ad) => {
+        const startY = playheadY - (ad.startTime - midiTime) * pixelsPerSecond;
+        const endY = playheadY - (ad.endTime - midiTime) * pixelsPerSecond;
+        if (endY > canvas.height || startY < 0) return;
+
+        ctx.strokeStyle = '#22D3EE';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const midY = (startY + endY) / 2;
+        const curveX = 20;
+        ctx.moveTo(canvas.width - 15, startY);
+        ctx.quadraticCurveTo(canvas.width - 15 + curveX, midY, canvas.width - 15, endY);
+        ctx.stroke();
+      });
+
+    // CRESCENDO effect - growing wedge on left side (vertical for cinema)
+    adornments
+      .filter((ad) => ad.type === 'crescendo')
+      .forEach((ad) => {
+        const startY = playheadY - (ad.startTime - midiTime) * pixelsPerSecond;
+        const endY = playheadY - (ad.endTime - midiTime) * pixelsPerSecond;
+        if (endY > canvas.height || startY < 0) return;
+
+        ctx.strokeStyle = '#F97316'; // Orange
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const wedgeWidth = 10;
+        ctx.moveTo(30, startY);                    // point at start
+        ctx.lineTo(30 - wedgeWidth, endY);         // left at end
+        ctx.moveTo(30, startY);                    // point at start again
+        ctx.lineTo(30 + wedgeWidth, endY);         // right at end
+        ctx.stroke();
+      });
+
+    // DECRESCENDO effect - shrinking wedge on left side (vertical for cinema)
+    adornments
+      .filter((ad) => ad.type === 'decrescendo')
+      .forEach((ad) => {
+        const startY = playheadY - (ad.startTime - midiTime) * pixelsPerSecond;
+        const endY = playheadY - (ad.endTime - midiTime) * pixelsPerSecond;
+        if (endY > canvas.height || startY < 0) return;
+
+        ctx.strokeStyle = '#F97316'; // Orange
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const wedgeWidth = 10;
+        ctx.moveTo(30 - wedgeWidth, startY);       // left at start
+        ctx.lineTo(30, endY);                      // point at end
+        ctx.moveTo(30 + wedgeWidth, startY);       // right at start
+        ctx.lineTo(30, endY);                      // point at end
+        ctx.stroke();
+      });
 
     // Draw playhead line
     ctx.strokeStyle = '#ffffff';
@@ -401,7 +783,7 @@ export default function CinemaPlayPage() {
       ctx.globalAlpha = 1;
     }
 
-  }, [notes, tracks, audioTime, syncPoints, secondsVisible, isTrackVisible, viewMode, showWatermark, config, avOffset]);
+  }, [notes, tracks, audioTime, syncPoints, adornments, secondsVisible, isTrackVisible, viewMode, showWatermark, config, avOffset]);
 
   // Playback controls
   const togglePlay = useCallback(() => {

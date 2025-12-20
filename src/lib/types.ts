@@ -29,14 +29,20 @@ export interface SyncPoint {
 
 // Adornment types - visual enhancements for notes/sections
 export type AdornmentType =
-  | 'wavy'      // Melodic runs - flowing wave effect
-  | 'spark'     // Syncopation - sparkle/burst effect
-  | 'punch'     // Strong accents - bold impact
-  | 'glow'      // Sustained notes - halo effect
-  | 'phrase'    // Section markers - bracket overlay
-  | 'accent'    // Single note emphasis - highlight
-  | 'tremolo'   // Rapid repetition - vibration
-  | 'legato';   // Smooth connection - curved lines
+  | 'wavy'       // Melodic runs - flowing wave effect
+  | 'spark'      // Syncopation - sparkle/burst effect
+  | 'punch'      // Strong accents - bold impact
+  | 'glow'       // Sustained notes - halo effect
+  | 'phrase'     // Section markers - bracket overlay
+  | 'accent'     // Single note emphasis - highlight
+  | 'tremolo'    // Rapid repetition - vibration
+  | 'legato'     // Smooth connection - curved lines
+  | 'star'       // Star burst shape - dramatic emphasis
+  | 'diamond'    // Diamond/rhombus shape - special notes
+  | 'football'   // Ellipse/oval shape - whole note feel
+  | 'arrow'      // Directional indicator - movement
+  | 'crescendo'  // Growing wedge - increasing intensity
+  | 'decrescendo'; // Shrinking wedge - decreasing intensity
 
 export interface Adornment {
   id: string;
@@ -44,7 +50,8 @@ export interface Adornment {
   scope: 'track' | 'section';  // Instrument-level or time-range
   startTime: number;           // Start time in MIDI timeline
   endTime: number;             // End time in MIDI timeline
-  trackIndex?: number;         // Required for 'track' scope
+  trackIndex?: number;         // Required for 'track' scope (single track)
+  trackIndices?: number[];     // For 'section' scope - limit to specific tracks
   label?: string;
 }
 
@@ -93,6 +100,12 @@ export const ADORNMENT_LABELS: Record<AdornmentType, string> = {
   accent: 'Accent',
   tremolo: 'Tremolo',
   legato: 'Legato',
+  star: 'Star',
+  diamond: 'Diamond',
+  football: 'Football',
+  arrow: 'Arrow',
+  crescendo: 'Crescendo',
+  decrescendo: 'Decrescendo',
 };
 
 // Helper to get color for track index

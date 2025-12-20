@@ -19,6 +19,7 @@ import {
   generateSyncPointId,
   generateAdornmentId,
   formatTime,
+  audioToMidiTime,
 } from '@/lib/sync';
 import { fetchSongConfig, saveSongConfig, exportConfigAsJson } from '@/lib/storage';
 
@@ -87,6 +88,12 @@ export default function EditorPage() {
 
   // State - Synced Zoom
   const [syncedZoom, setSyncedZoom] = useState(true); // Keep audio and MIDI zoom in sync
+
+  // In adornment mode, also sync time position (not just zoom)
+  const [syncedPosition, setSyncedPosition] = useState(true);
+
+  // State - Banded view for piano roll (separate horizontal lanes per track)
+  const [bandedView, setBandedView] = useState(false);
 
   // State - Toast notification
   const [toast, setToast] = useState<string | null>(null);
@@ -365,6 +372,7 @@ export default function EditorPage() {
       let startTime: number;
       let endTime: number;
       let trackIndex: number | undefined;
+      let trackIndices: number[] | undefined;
 
       if (adornmentScope === 'track') {
         startTime = 0;
@@ -374,6 +382,8 @@ export default function EditorPage() {
         if (selectedNotes.length === 0) return;
         startTime = Math.min(...selectedNotes.map((n) => n.time));
         endTime = Math.max(...selectedNotes.map((n) => n.time + n.duration));
+        // Capture which tracks the selected notes belong to
+        trackIndices = [...new Set(selectedNotes.map((n) => n.track))];
       }
 
       const newAdornment: Adornment = {
@@ -383,6 +393,7 @@ export default function EditorPage() {
         startTime,
         endTime,
         trackIndex,
+        trackIndices,
         label: ADORNMENT_LABELS[type],
       };
 
@@ -401,12 +412,23 @@ export default function EditorPage() {
 
     setSaving(true);
     try {
+      // Sort sync points by time and renumber them sequentially
+      const sortedAndNumberedSyncPoints = [...syncPoints]
+        .sort((a, b) => a.midiTime - b.midiTime)
+        .map((sp, index) => ({
+          ...sp,
+          label: `Sync ${index + 1}`,
+        }));
+
+      // Update local state with renumbered sync points
+      setSyncPoints(sortedAndNumberedSyncPoints);
+
       const updatedConfig: SongConfig = {
         id: songId,
         title: config?.title || songId.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
         midiFile: config?.midiFile || `${songId}.mid`,
         audioFile: config?.audioFile || `${songId}.mp3`,
-        syncPoints,
+        syncPoints: sortedAndNumberedSyncPoints,
         tracks: tracks.map((t) => ({
           name: t.name,
           noteCount: t.noteCount,
@@ -425,6 +447,25 @@ export default function EditorPage() {
       await saveSongConfig(songId, updatedConfig);
       console.log('Save successful!');
       setConfig(updatedConfig);
+
+      // Update WaveSurfer regions with new labels
+      if (regionsRef.current) {
+        // Clear existing regions
+        regionsRef.current.clearRegions();
+        // Re-add with updated labels
+        sortedAndNumberedSyncPoints.forEach((sp) => {
+          regionsRef.current!.addRegion({
+            id: sp.id,
+            start: sp.audioTime,
+            end: sp.audioTime,
+            color: 'rgba(16, 185, 129, 0.8)',
+            content: sp.label,
+            drag: true,
+            resize: false,
+          });
+        });
+      }
+
       showToast('Saved!');
     } catch (err) {
       console.error('Save failed:', err);
@@ -483,21 +524,40 @@ export default function EditorPage() {
       const maxPitch = Math.max(...notes.map((n) => n.midi)) + 2;
       const pitchRange = maxPitch - minPitch;
 
+      const numTracks = tracks.length;
+      const bandHeight = numTracks > 0 ? (canvas.height - 20) / numTracks : canvas.height;
+
       for (const note of notes) {
         const noteX = (note.time - midiScroll) * midiZoom;
         const noteWidth = Math.max(note.duration * midiZoom, 8);
-        const noteY =
-          canvas.height -
-          ((note.midi - minPitch) / pitchRange) * (canvas.height - 20) -
-          10;
 
-        if (x >= noteX && x <= noteX + noteWidth && y >= noteY - 4 && y <= noteY + 4) {
+        let noteY: number;
+        let noteHeight = 6;
+
+        if (bandedView && numTracks > 0) {
+          // Banded view: calculate Y within track band
+          const trackBandY = note.track * bandHeight;
+          const trackNotes = notes.filter(n => n.track === note.track);
+          const trackMinPitch = Math.min(...trackNotes.map(n => n.midi)) - 1;
+          const trackMaxPitch = Math.max(...trackNotes.map(n => n.midi)) + 1;
+          const trackPitchRange = trackMaxPitch - trackMinPitch || 1;
+
+          const pitchNorm = (note.midi - trackMinPitch) / trackPitchRange;
+          noteY = trackBandY + 16 + (1 - pitchNorm) * (bandHeight - 20);
+          noteHeight = Math.max(4, bandHeight / 15);
+        } else {
+          // Collapsed view
+          noteY = canvas.height - ((note.midi - minPitch) / pitchRange) * (canvas.height - 20) - 10;
+        }
+
+        const hitPadding = Math.max(4, noteHeight / 2 + 2);
+        if (x >= noteX && x <= noteX + noteWidth && y >= noteY - hitPadding && y <= noteY + hitPadding) {
           return note;
         }
       }
       return null;
     },
-    [notes, midiScroll, midiZoom]
+    [notes, tracks, midiScroll, midiZoom, bandedView]
   );
 
   // Draw Piano Roll
@@ -525,9 +585,38 @@ export default function EditorPage() {
       return;
     }
 
+    // Calculate pitch range for collapsed view
     const minPitch = Math.min(...notes.map((n) => n.midi)) - 2;
     const maxPitch = Math.max(...notes.map((n) => n.midi)) + 2;
     const pitchRange = maxPitch - minPitch;
+
+    // For banded view, calculate track lanes
+    const numTracks = tracks.length;
+    const bandHeight = numTracks > 0 ? (canvas.height - 20) / numTracks : canvas.height;
+
+    // Draw track bands background (if banded view)
+    if (bandedView && numTracks > 0) {
+      for (let i = 0; i < numTracks; i++) {
+        const bandY = i * bandHeight;
+        // Alternating background
+        ctx.fillStyle = i % 2 === 0 ? '#1f1f23' : '#18181b';
+        ctx.fillRect(0, bandY, canvas.width, bandHeight);
+
+        // Track label on left
+        ctx.fillStyle = tracks[i]?.color || '#666';
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(tracks[i]?.name || `Track ${i + 1}`, 4, bandY + 12);
+
+        // Divider line
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, bandY + bandHeight);
+        ctx.lineTo(canvas.width, bandY + bandHeight);
+        ctx.stroke();
+      }
+    }
 
     // Draw time grid (every second)
     ctx.strokeStyle = '#333';
@@ -572,17 +661,34 @@ export default function EditorPage() {
     notes.forEach((note) => {
       const x = (note.time - midiScroll) * midiZoom;
       const width = Math.max(note.duration * midiZoom, 3);
-      const y =
-        canvas.height -
-        ((note.midi - minPitch) / pitchRange) * (canvas.height - 20) -
-        10;
+
+      let y: number;
+      let noteHeight = 6;
+
+      if (bandedView && numTracks > 0) {
+        // Banded view: notes in track lanes, pitch within each band
+        const trackBandY = note.track * bandHeight;
+        // Get pitch range within this track
+        const trackNotes = notes.filter(n => n.track === note.track);
+        const trackMinPitch = Math.min(...trackNotes.map(n => n.midi)) - 1;
+        const trackMaxPitch = Math.max(...trackNotes.map(n => n.midi)) + 1;
+        const trackPitchRange = trackMaxPitch - trackMinPitch || 1;
+
+        // Position within band (leave space for label)
+        const pitchNorm = (note.midi - trackMinPitch) / trackPitchRange;
+        y = trackBandY + 16 + (1 - pitchNorm) * (bandHeight - 20);
+        noteHeight = Math.max(4, bandHeight / 15);
+      } else {
+        // Collapsed view: all notes by pitch
+        y = canvas.height - ((note.midi - minPitch) / pitchRange) * (canvas.height - 20) - 10;
+      }
 
       if (x + width < 0 || x > canvas.width) return;
 
       const isSelected = selectedNotes.some(
-        (n) => n.time === note.time && n.midi === note.midi
+        (n) => n.time === note.time && n.midi === note.midi && n.track === note.track
       );
-      const isHovered = hoveredNote?.time === note.time && hoveredNote?.midi === note.midi;
+      const isHovered = hoveredNote?.time === note.time && hoveredNote?.midi === note.midi && hoveredNote?.track === note.track;
 
       // Note color
       let color = tracks[note.track]?.color || '#666';
@@ -592,8 +698,62 @@ export default function EditorPage() {
       ctx.fillStyle = color;
       ctx.globalAlpha = isSelected || isHovered ? 1 : note.velocity * 0.6 + 0.4;
       ctx.beginPath();
-      ctx.roundRect(x, y - 3, width, 6, 2);
+      ctx.roundRect(x, y - noteHeight / 2, width, noteHeight, 2);
       ctx.fill();
+
+      // Draw selection ring for selected notes
+      if (isSelected) {
+        ctx.strokeStyle = '#8B5CF6';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(x - 2, y - noteHeight / 2 - 2, width + 4, noteHeight + 4, 3);
+        ctx.stroke();
+      }
+    });
+
+    ctx.globalAlpha = 1;
+
+    // Draw adornment regions (visual indicators in editor)
+    adornments.forEach((ad) => {
+      const startX = (ad.startTime - midiScroll) * midiZoom;
+      const endX = (ad.endTime - midiScroll) * midiZoom;
+      if (endX < 0 || startX > canvas.width) return;
+
+      // Color based on adornment type
+      const adornmentColors: Record<string, string> = {
+        punch: '#EF4444',    // Red
+        accent: '#F97316',   // Orange
+        spark: '#FBBF24',    // Yellow
+        glow: '#A855F7',     // Purple
+        wavy: '#3B82F6',     // Blue
+        tremolo: '#14B8A6',  // Teal
+        legato: '#22D3EE',   // Cyan
+        phrase: '#A855F7',   // Purple
+        star: '#F472B6',     // Pink
+        diamond: '#818CF8',  // Indigo
+        football: '#34D399', // Emerald
+        arrow: '#FB923C',    // Light orange
+        crescendo: '#F97316', // Orange
+        decrescendo: '#F97316', // Orange
+      };
+
+      const color = adornmentColors[ad.type] || '#8B5CF6';
+
+      // Draw top bar indicator
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.8;
+      ctx.fillRect(startX, 0, endX - startX, 4);
+
+      // Draw subtle overlay on affected area
+      ctx.globalAlpha = 0.1;
+      ctx.fillRect(startX, 4, endX - startX, canvas.height - 4);
+
+      // Label
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = color;
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(ad.label || ad.type, startX + 2, 12);
     });
 
     ctx.globalAlpha = 1;
@@ -614,12 +774,34 @@ export default function EditorPage() {
       ctx.fillText(`MIDI: ${formatTime(selectedMidiTime)}`, x + 5, 25);
     }
 
+    // Draw playhead in adornment mode (synced with audio)
+    if (editorMode === 'adornment' && syncPoints.length > 0) {
+      const midiPlayhead = audioToMidiTime(audioTime, syncPoints);
+      const playheadX = (midiPlayhead - midiScroll) * midiZoom;
+
+      if (playheadX >= 0 && playheadX <= canvas.width) {
+        // Playhead line
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(playheadX, 0);
+        ctx.lineTo(playheadX, canvas.height);
+        ctx.stroke();
+
+        // Time label
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`♪ ${formatTime(midiPlayhead)}`, playheadX + 4, canvas.height - 5);
+      }
+    }
+
     // Draw mode indicator
     ctx.fillStyle = editorMode === 'sync' ? '#10B981' : '#8B5CF6';
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'right';
     ctx.fillText(
-      editorMode === 'sync' ? 'SYNC MODE: Click to select time' : 'ADORNMENT MODE: Click/Shift+click notes',
+      editorMode === 'sync' ? 'SYNC MODE: Click to select time' : 'ADORNMENT MODE: Views synced • Click notes',
       canvas.width - 10,
       15
     );
@@ -630,10 +812,13 @@ export default function EditorPage() {
     midiZoom,
     midiScroll,
     syncPoints,
+    adornments,
     selectedMidiTime,
     selectedNotes,
     hoveredNote,
     editorMode,
+    audioTime,
+    bandedView,
   ]);
 
   // Piano Roll Mouse Handlers
@@ -788,8 +973,37 @@ export default function EditorPage() {
     return () => canvas.removeEventListener('wheel', handleWheel);
   }, [midiZoom, midiDuration]);
 
+  // Sync MIDI scroll with audio time in adornment mode
+  useEffect(() => {
+    if (editorMode !== 'adornment' || !syncedPosition || syncPoints.length === 0) return;
+
+    // Convert current audio time to MIDI time using sync points
+    const midiTime = audioToMidiTime(audioTime, syncPoints);
+
+    // Center the view on this MIDI time (accounting for visible width)
+    // Approximate visible width in seconds based on a container width of ~800px
+    const visibleSeconds = 800 / midiZoom;
+    const targetScroll = Math.max(0, midiTime - visibleSeconds / 4); // Put playhead at 1/4 from left
+
+    setMidiScroll(targetScroll);
+  }, [editorMode, syncedPosition, audioTime, syncPoints, midiZoom]);
+
+  // When entering adornment mode, force synced zoom and position
+  useEffect(() => {
+    if (editorMode === 'adornment') {
+      setSyncedZoom(true);
+      setSyncedPosition(true);
+      // Also sync the current zoom levels
+      if (wavesurferRef.current) {
+        wavesurferRef.current.zoom(midiZoom);
+        setAudioZoom(midiZoom);
+      }
+    }
+  }, [editorMode, midiZoom]);
+
   const adornmentTypes: AdornmentType[] = [
     'wavy', 'spark', 'punch', 'glow', 'phrase', 'accent', 'tremolo', 'legato',
+    'star', 'diamond', 'football', 'arrow', 'crescendo', 'decrescendo',
   ];
 
   return (
@@ -877,8 +1091,15 @@ export default function EditorPage() {
           <span className="text-xs text-zinc-500 ml-4">
             {editorMode === 'sync'
               ? 'Click waveform for audio time, click piano roll for MIDI time, then Link'
-              : 'Click or Shift+click notes to select, then apply adornment'}
+              : syncPoints.length > 0
+                ? 'Audio & MIDI views synced • Click/Shift+click notes to select'
+                : 'Add sync points first to enable synced view'}
           </span>
+          {editorMode === 'adornment' && syncPoints.length > 0 && (
+            <span className="text-xs text-purple-400 ml-2 bg-purple-600/20 px-2 py-0.5 rounded">
+              Synced
+            </span>
+          )}
         </div>
       </div>
 
@@ -1023,9 +1244,22 @@ export default function EditorPage() {
       {/* MIDI Piano Roll */}
       <div className={`bg-zinc-900 rounded-lg p-4 border border-zinc-800 ${loading ? 'hidden' : ''}`}>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="font-semibold text-sm">MIDI Piano Roll</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-semibold text-sm">MIDI Piano Roll</h2>
+            <button
+              onClick={() => setBandedView(!bandedView)}
+              className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                bandedView
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+              }`}
+              title={bandedView ? 'Switch to collapsed view (all tracks merged)' : 'Switch to banded view (tracks in separate lanes)'}
+            >
+              {bandedView ? 'Banded' : 'Collapsed'}
+            </button>
+          </div>
           <div className="flex items-center gap-4 text-xs text-zinc-400">
-            <span>Scroll: Mouse wheel | Zoom: Ctrl+wheel | Drag: Alt+drag</span>
+            <span>Scroll: wheel | Zoom: Ctrl+wheel | Drag: Alt+drag</span>
             {editorMode === 'sync' && selectedMidiTime !== null && (
               <span className="text-amber-400 font-mono">
                 MIDI: {formatTime(selectedMidiTime)}
@@ -1233,7 +1467,7 @@ export default function EditorPage() {
                     startTime: prev.midiTime,
                     endTime: curr.midiTime,
                     ratio,
-                    label: `${prev.label}→${curr.label}`,
+                    label: `#${i}→#${i + 1}`, // Use sorted position, not original labels
                     midiDelta,
                     audioDelta,
                   });
@@ -1321,85 +1555,152 @@ export default function EditorPage() {
       {/* Adornment Mode Controls */}
       {editorMode === 'adornment' && midiLoaded && audioLoaded && (
         <div className="bg-zinc-900 rounded-lg p-4 border-2 border-purple-600/50">
-          <h2 className="font-semibold text-sm mb-3 text-purple-400">Visual Adornments</h2>
-
-          <div className="flex items-center gap-4 mb-3">
-            <span className="text-xs text-zinc-400">Scope:</span>
-            <button
-              onClick={() => setAdornmentScope('section')}
-              className={`px-3 py-1 rounded text-xs ${
-                adornmentScope === 'section'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-zinc-700 text-zinc-400'
-              }`}
-            >
-              Selected Notes
-            </button>
-            <button
-              onClick={() => setAdornmentScope('track')}
-              className={`px-3 py-1 rounded text-xs ${
-                adornmentScope === 'track'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-zinc-700 text-zinc-400'
-              }`}
-            >
-              Entire Track
-            </button>
-
-            {adornmentScope === 'track' && tracks.length > 0 && (
-              <select
-                value={selectedTrackForAdornment}
-                onChange={(e) => setSelectedTrackForAdornment(Number(e.target.value))}
-                className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs"
-              >
-                {tracks.map((t, i) => (
-                  <option key={i} value={i}>{t.name}</option>
-                ))}
-              </select>
-            )}
-
-            {adornmentScope === 'section' && (
-              <span className="text-xs text-zinc-500">
-                {selectedNotes.length === 0
-                  ? 'Click notes in piano roll to select'
-                  : `${selectedNotes.length} note${selectedNotes.length > 1 ? 's' : ''} selected`}
-              </span>
-            )}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-sm text-purple-400">Visual Adornments</h2>
+            <div className="text-xs text-zinc-500">
+              Multi-select: <span className="text-purple-300">Shift+Click</span> notes
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mb-4">
-            {adornmentTypes.map((type) => (
+          {/* Step 1: Choose Scope */}
+          <div className="mb-4 p-3 bg-zinc-800/50 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-5 h-5 bg-purple-600 rounded-full text-xs flex items-center justify-center font-bold">1</span>
+              <span className="text-xs text-zinc-300 font-medium">Choose Scope</span>
+            </div>
+            <div className="flex items-center gap-3 ml-7">
               <button
-                key={type}
-                onClick={() => addAdornment(type)}
-                disabled={adornmentScope === 'section' && selectedNotes.length === 0}
-                className="px-3 py-1 bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-700 disabled:text-zinc-500 rounded text-xs"
+                onClick={() => setAdornmentScope('section')}
+                className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                  adornmentScope === 'section'
+                    ? 'bg-purple-600 text-white ring-2 ring-purple-400'
+                    : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+                }`}
               >
-                {ADORNMENT_LABELS[type]}
+                Selected Notes
               </button>
-            ))}
+              <button
+                onClick={() => setAdornmentScope('track')}
+                className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                  adornmentScope === 'track'
+                    ? 'bg-purple-600 text-white ring-2 ring-purple-400'
+                    : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+                }`}
+              >
+                Entire Track
+              </button>
+
+              {adornmentScope === 'track' && tracks.length > 0 && (
+                <select
+                  value={selectedTrackForAdornment}
+                  onChange={(e) => setSelectedTrackForAdornment(Number(e.target.value))}
+                  className="bg-zinc-700 border border-zinc-600 rounded px-2 py-1.5 text-xs"
+                >
+                  {tracks.map((t, i) => (
+                    <option key={i} value={i}>{t.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
 
-          {adornments.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {adornments.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex items-center gap-2 bg-zinc-800 rounded px-3 py-1 text-xs"
+          {/* Step 2: Select Notes (only for section scope) */}
+          {adornmentScope === 'section' && (
+            <div className="mb-4 p-3 bg-zinc-800/50 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-5 h-5 bg-purple-600 rounded-full text-xs flex items-center justify-center font-bold">2</span>
+                <span className="text-xs text-zinc-300 font-medium">Select Notes in Piano Roll</span>
+              </div>
+              <div className="ml-7">
+                {selectedNotes.length === 0 ? (
+                  <div className="text-xs text-zinc-500 italic">
+                    Click on notes above. Shift+Click to add more.
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="bg-purple-600/20 border border-purple-500/50 rounded px-3 py-2">
+                      <div className="text-purple-300 font-medium text-sm">
+                        {selectedNotes.length} note{selectedNotes.length > 1 ? 's' : ''} selected
+                      </div>
+                      <div className="text-xs text-zinc-400 mt-0.5">
+                        Time: {formatTime(Math.min(...selectedNotes.map(n => n.time)))} → {formatTime(Math.max(...selectedNotes.map(n => n.time + n.duration)))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedNotes([])}
+                      className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded text-xs text-zinc-400"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Apply Adornment */}
+          <div className="mb-4 p-3 bg-zinc-800/50 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <span className={`w-5 h-5 rounded-full text-xs flex items-center justify-center font-bold ${
+                (adornmentScope === 'section' && selectedNotes.length === 0)
+                  ? 'bg-zinc-600 text-zinc-400'
+                  : 'bg-purple-600 text-white'
+              }`}>
+                {adornmentScope === 'section' ? '3' : '2'}
+              </span>
+              <span className="text-xs text-zinc-300 font-medium">Apply Adornment Type</span>
+            </div>
+            <div className="flex flex-wrap gap-2 ml-7">
+              {adornmentTypes.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => {
+                    addAdornment(type);
+                    showToast(`Added ${ADORNMENT_LABELS[type]} adornment`);
+                  }}
+                  disabled={adornmentScope === 'section' && selectedNotes.length === 0}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                    adornmentScope === 'section' && selectedNotes.length === 0
+                      ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                      : 'bg-purple-600 hover:bg-purple-500 text-white hover:scale-105'
+                  }`}
                 >
-                  <span className="text-purple-400">{a.label}</span>
-                  <span className="text-zinc-500">{a.scope}</span>
-                  {a.trackIndex !== undefined && (
-                    <span className="text-zinc-400">Track {a.trackIndex + 1}</span>
-                  )}
-                  <button
-                    onClick={() => setAdornments((prev) => prev.filter((x) => x.id !== a.id))}
-                    className="text-red-400 hover:text-red-300"
-                  >
-                    ×
-                  </button>
-                </div>
+                  {ADORNMENT_LABELS[type]}
+                </button>
               ))}
+            </div>
+          </div>
+
+          {/* Created Adornments List */}
+          {adornments.length > 0 && (
+            <div className="border-t border-zinc-700 pt-4 mt-4">
+              <h3 className="text-xs text-zinc-400 mb-2 font-medium">
+                Created Adornments ({adornments.length})
+              </h3>
+              <div className="space-y-1">
+                {adornments.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center justify-between bg-zinc-800 rounded px-3 py-2 text-xs group hover:bg-zinc-750"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-purple-400 font-medium">{a.label}</span>
+                      <span className="text-zinc-500">
+                        {a.scope === 'track'
+                          ? `Track: ${tracks[a.trackIndex ?? 0]?.name || `#${(a.trackIndex ?? 0) + 1}`}`
+                          : `${formatTime(a.startTime)} → ${formatTime(a.endTime)}`
+                        }
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setAdornments((prev) => prev.filter((x) => x.id !== a.id))}
+                      className="text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

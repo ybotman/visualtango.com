@@ -39,7 +39,7 @@ export default function PlayPage() {
   const [adornments, setAdornments] = useState<Adornment[]>([]);
 
   // A/V Sync offset - positive = visual ahead, negative = visual behind
-  const [avOffset] = useState(300); // Default +300ms (hidden control)
+  const [avOffset] = useState(250); // Default +250ms (hidden control)
 
   // Start Tone.js
   const startTone = useCallback(async () => {

@@ -102,8 +102,8 @@
     },
     {
       "id": "sp-1766166554031-03itr44dn",
-      "midiTime": 94.5,
-      "audioTime": 96.2304273038126,
+      "midiTime": 96.01162790697674,
+      "audioTime": 98.10041266512528,
       "label": "Sync 17"
     },
     {
@@ -113,112 +113,130 @@
       "label": "Sync 18"
     },
     {
+      "id": "sp-1766257392870-mwhoediz5",
+      "midiTime": 106,
+      "audioTime": 107.06587687725079,
+      "label": "Sync 19"
+    },
+    {
       "id": "sp-1766166637536-aobc9xt13",
       "midiTime": 107.77083333333333,
       "audioTime": 109.72720332011762,
-      "label": "Sync 19"
+      "label": "Sync 20"
     },
     {
       "id": "sp-1766170316603-hv0q533v8",
       "midiTime": 112.00927604503022,
       "audioTime": 113.71046932261967,
-      "label": "Sync 20"
+      "label": "Sync 21"
     },
     {
       "id": "sp-1766171563657-7ak5y1l8p",
       "midiTime": 114.22527709744554,
       "audioTime": 116.46305902516367,
-      "label": "Sync 21"
+      "label": "Sync 22"
     },
     {
       "id": "sp-1766171535911-ddfia04ge",
       "midiTime": 116,
       "audioTime": 117.91332541537184,
-      "label": "Sync 22"
+      "label": "Sync 23"
     },
     {
       "id": "sp-1766171600302-6r56vsowx",
       "midiTime": 117,
-      "audioTime": 117.33821977787551,
-      "label": "Sync 23"
+      "audioTime": 118.83722831801305,
+      "label": "Sync 24"
     },
     {
       "id": "sp-1766166722170-7lcq9j239",
-      "midiTime": 124,
-      "audioTime": 126.23018642,
-      "label": "Sync 24"
+      "midiTime": 129.04651162790697,
+      "audioTime": 130.33675858723208,
+      "label": "Sync 25"
+    },
+    {
+      "id": "sp-1766257828228-5jz4z56b0",
+      "midiTime": 130.03673920576455,
+      "audioTime": 131.2969218414235,
+      "label": "Sync 26"
+    },
+    {
+      "id": "sp-1766257921316-aehaqyafd",
+      "midiTime": 135.0134833918111,
+      "audioTime": 135.32072476056723,
+      "label": "Sync 27"
     },
     {
       "id": "sp-1766170723412-b5iapwptj",
       "midiTime": 143.75,
       "audioTime": 146.21257114285714,
-      "label": "Sync 25"
+      "label": "Sync 28"
     },
     {
       "id": "sp-1766170746300-ztyh8nl7f",
       "midiTime": 144.25,
       "audioTime": 146.6814416249725,
-      "label": "Sync 26"
+      "label": "Sync 29"
     },
     {
       "id": "sp-1766170789980-nbac0x541",
       "midiTime": 147.5,
       "audioTime": 149.84475447764422,
-      "label": "Sync 27"
+      "label": "Sync 30"
     },
     {
       "id": "sp-1766170898261-q4pv1ves8",
       "midiTime": 152,
       "audioTime": 154.2646402223851,
-      "label": "Sync 28"
+      "label": "Sync 31"
     },
     {
       "id": "sp-1766170925451-32l3urs8d",
       "midiTime": 156,
       "audioTime": 158.440713316426,
-      "label": "Sync 29"
+      "label": "Sync 32"
     },
     {
       "id": "sp-1766170934618-z6g9oc45v",
       "midiTime": 156.5,
       "audioTime": 159.0658739592465,
-      "label": "Sync 30"
+      "label": "Sync 33"
     },
     {
       "id": "sp-1766170943454-7z9dnxz60",
       "midiTime": 157.033333,
       "audioTime": 159.65352496349777,
-      "label": "Sync 31"
+      "label": "Sync 34"
     },
     {
       "id": "sp-1766170949361-aewdwoy9t",
       "midiTime": 157.59843176276772,
       "audioTime": 160.36620809631313,
-      "label": "Sync 32"
+      "label": "Sync 35"
     },
     {
       "id": "sp-1766170964199-vz3ipf9bc",
       "midiTime": 158.220147,
       "audioTime": 160.99136873913363,
-      "label": "Sync 33"
+      "label": "Sync 36"
     },
     {
       "id": "sp-1766170971771-8qssgwzrr",
       "midiTime": 158.886814,
       "audioTime": 161.5790197433849,
-      "label": "Sync 34"
+      "label": "Sync 37"
     },
     {
       "id": "sp-1766171016983-nweodg4n9",
       "midiTime": 161.180343,
       "audioTime": 163.45450167184637,
-      "label": "Sync 35"
+      "label": "Sync 38"
     },
     {
       "id": "sp-1766165387384-ce6wwijha",
       "midiTime": 163.91451946457988,
       "audioTime": 165.23035011199062,
-      "label": "Sync 36"
+      "label": "Sync 39"
     }
   ],
   "tracks": [
@@ -337,5 +355,5 @@
     }
   ],
   "createdAt": "2025-12-19T16:54:50.217Z",
-  "updatedAt": "2025-12-20T18:23:32.410Z"
+  "updatedAt": "2025-12-20T19:14:52.371Z"
 }

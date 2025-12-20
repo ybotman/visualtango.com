@@ -45,7 +45,7 @@ export default function CinemaPlayPage() {
   const [isRecording, setIsRecording] = useState(false);
 
   // A/V Sync offset - positive = visual ahead, negative = visual behind
-  const [avOffset, setAvOffset] = useState(300); // Default +300ms
+  const [avOffset, setAvOffset] = useState(250); // Default +250ms
 
   // Track visibility helpers
   const toggleTrackMute = useCallback((trackIndex: number) => {

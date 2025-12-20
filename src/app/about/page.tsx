@@ -66,8 +66,13 @@ export default function AboutPage() {
             see and understand the musical structure that drives tango movement.
           </p>
 
+          <p className="text-zinc-400">
+            <strong className="text-zinc-200">Primary mentor: Hernan Brizuela</strong> -
+            Hernan guides me and teaches the meaning of tango. What layers and roles we
+            have in this wonderful obsession.
+          </p>
           <p className="text-zinc-500">
-            Tango mentors: Gustavo Naveira, Chicho Frumboli, Alejandra Mantinan, Hernan Brizuela
+            Other influences: Gustavo Naveira, Chicho Frumboli, Alejandra Mantinan
           </p>
         </div>
       </div>
